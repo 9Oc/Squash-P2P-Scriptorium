@@ -1,6 +1,6 @@
 This is a collection of 1-file python/batch scripts for making life easier when creating P2P releases.
 
-## Quick Links
+# Quick Links
 - [Subtitle Scripts](#subtitle-scripts)
 - [Audio Scripts](#audio-scripts)
 - [Video Scripts](#video-scripts)
