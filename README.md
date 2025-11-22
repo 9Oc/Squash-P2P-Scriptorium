@@ -6,6 +6,39 @@ This is a collection of 1-file python/batch scripts for making life easier when 
 - [Video Scripts](#video-scripts)
 
 # Subtitle Scripts
+## supmapper
+supmapper is an automatic PGS subtitle tonemapper. It will tonemap a directory (or multiple directories) of .sup files to match the brightness of a reference .sup file.
+
+Requirements: Python 3.10+
+
+Dependencies:
+
+`pip install git+https://github.com/cubicibo/SUPer.git`
+
+[SupMover](https://github.com/MonoS/SupMover) must be in your PATH with the .exe named `SupMover.exe`.
+
+### Usage
+An input directory (or multiple directories) and the tonemapping method are required arguments.
+
+Using a reference file
+
+`supmapper.py "/path/to/subtitles" --reference "/path/to/reference.sup"`
+  
+`supmapper.py "/path/to/subtitles" -r "/path/to/reference.sup"`
+  
+Using a target percentage
+  
+`supmapper.py "/path/to/subtitles" --percent 60.5`
+  
+`supmapper.py "/path/to/subtitles" -p 60.5`
+  
+Using a target RGB value
+  
+`supmapper.py "/path/to/subtitles" --rgb 180`
+
+To provide multiple directories for input, simply add additional directories to the command
+
+`supmapper.py "/path/to/subtitles1" "/path/to/subtitles2" "/path/to/subtitles3" --reference "/path/to/reference.sup"`
 
 ## suppf
 suppf is PGS subtitle palette fixer that corrects common subtitle color issues.
