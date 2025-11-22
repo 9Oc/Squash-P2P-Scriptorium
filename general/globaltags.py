@@ -6,6 +6,7 @@ Dependencies:
 pip install tvdb_v4_official requests rich
 """
 
+import re
 import sys
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
@@ -19,6 +20,15 @@ TMDB_API_KEY = "TMDB_API_KEY" # <-- your TMDB api key here
 TVDB_API_KEY = "TVDB_API_KEY" # <-- your TVDB api key here
 
 tvdb = TVDB(TVDB_API_KEY)
+
+
+def sanitize(text):
+        """Return a filesystem-safe version of a string."""
+        if not text:
+            return ""
+        text = re.sub(r'[\/\\:\*\?"<>\|\-—·.,^]+', '', text)
+        text = re.sub(r'\s+', ' ', text)
+        return text.strip()
 
 
 def get_imdb_id_from_tmdb(tmdb_id: str) -> str | None:
@@ -149,6 +159,7 @@ def main():
     
     # save to file
     output_filename = f".global_tags_{title}_{tmdb_year}.xml"
+    output_title = sanitize(output_title)
     with open(output_filename, 'w', encoding='utf-8') as f:
         f.write(xml_content)
     
