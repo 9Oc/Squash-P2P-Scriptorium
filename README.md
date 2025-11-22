@@ -2,6 +2,7 @@ This is a collection of 1-file python/batch scripts for making life easier when 
 
 ## Quick Links
 - [Subtitle Scripts](#subtitle-scripts)
+- [Audio Scripts](#audio-scripts)
 - [Video Scripts](#video-scripts)
 
 # Subtitle Scripts
