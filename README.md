@@ -5,6 +5,10 @@ This is a collection of 1-file python/batch scripts for making life easier when 
 ## suppf
 suppf is PGS subtitle palette fixer that corrects common subtitle color issues.
 
+Requirements: Python 3.09+
+
+Dependencies: None
+
 ### Usage
 Supplying only an input and output defaults to using automatic detection for what color(s) to fix.
 
