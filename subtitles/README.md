@@ -99,6 +99,8 @@ By default, the script processes `N` number of subtitles concurrently where `N` 
 
 `syncsups.py` will sync a given directory containing PGS .sup subtitle files to a given audio file.
 
+Note that this script will work on any PGS .sup file which has the standard 2 Display Sets per epoch as well as an additional non-standard type which contains `N` Display Sets per epoch. There may be additional non-standard Display Set structures which the script cannot parse properly. If you come across a PGS .sup file that the script fails to sync due to improper parsing of timestamps, please create a <a href="https://github.com/9Oc/Squash-P2P-Script-Emporium/issues">github issue</a> with a link to the PGS .sup file.
+
 Dependencies:
 
 `pip install ffsubsync git+https://github.com/cubicibo/SUPer.git`
