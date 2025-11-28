@@ -124,3 +124,17 @@ By default, the script processes `N` number of subtitles concurrently where `N` 
 Optionally, provide the `--keep-temp` argument to keep the temporary dummy .srt files created which the script generates and uses to write the new timestamps and framerate to the synced .sup files. This argument can be omitted in a majority of cases and is only used for debugging purposes.
 
 `syncsups.py "path\to\subtitles" --keep-temp`
+
+<h2><a href="https://github.com/9Oc/Squash-P2P-Script-Emporium/blob/main/subtitles/nfsubdl.js">nfsubdl</a></h2>
+
+`nfsubdl.js` is a mod of the <a href="https://greasyfork.org/en/scripts/26654-netflix-subtitle-downloader">Netflix - subtitle downloader</a> made by Tithen-Firion.
+
+The mod adds the following functions to the script:
+<ul><li>An additional button to the download menu which downloads <i>all</i> subtitles which are selectable, even those which are not available on the region you are downloading from.</li>
+<li>When using the above button to download, the downloaded WebVTT files will have their file names cleaned to remove unecessary characters, release year added, and language tags fixed.</li></ul>
+<hr>
+
+### Usage
+Add the script to your <a href="https://www.tampermonkey.net/">TamperMonkey</a> dashboard and save it.
+
+Then, load the Netflix video which you would like to download the subtitles for, navigate to the subtitle downloader menu which gets stickied to the top of the window, and press the `Download all subs (squash mod)` button.
