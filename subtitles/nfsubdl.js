@@ -2,15 +2,16 @@
 // @name        Netflix Subtitle Downloader (Squash Mod)
 // @description Allows you to download subtitles from Netflix, modified for 1-click all subs download
 // @license     MIT
-// @version     1.1
+// @version     1.2
 // @namespace   nfsubdl-squash-mod
 // @include     https://www.netflix.com/*
 // @grant       unsafeWindow
 // @require     https://cdn.jsdelivr.net/npm/jszip@3.7.1/dist/jszip.min.js
 // @require     https://cdn.jsdelivr.net/npm/file-saver-es@2.0.5/dist/FileSaver.min.js
-// @downloadURL https://raw.githubusercontent.com/9Oc/Squash-P2P-Script-Emporium/refs/heads/main/subtitles/nfsubdl.js
-// @updateURL   https://raw.githubusercontent.com/9Oc/Squash-P2P-Script-Emporium/refs/heads/main/subtitles/nfsubdl.js
 // ==/UserScript==
+// This script is a mod of "Netflix - subtitle downloader" by Tithen-Firion.
+// Thx to tithen for the original script.
+// You can find the latest version of the mod at this url https://github.com/9Oc/Squash-P2P-Script-Emporium/blob/main/subtitles/nfsubdl.js
 class ProgressBar {
     constructor(max) {
         this.current = 0;
