@@ -167,10 +167,13 @@ Examples:
             
         print("\nTonemapping subtitle files...")
         for pgs in pgs_files:
+            tonemapped_pgs = None
             if args.reference:
                 target_percent = (reference_max_rgb / pgs.max_rgb) * 100
                 if reference_max_rgb != pgs.max_rgb:
                     tonemapped_pgs = tonemap(pgs, target_percent)
+                else:
+                    tonemapped_pgs = pgs.path
             elif args.percent:
                 # get the factor to multiply the target percentage by
                 # to tonemap the .sup as if it were pure white
@@ -188,3 +191,4 @@ Examples:
             
         output_dir = input_dir / "Tonemapped_Subtitles"
         print(f"Tonemapped subtitles saved to: {output_dir}\n")
+
