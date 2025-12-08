@@ -228,7 +228,7 @@ for entry in clips_config:
 
     for param in entry:
         if isinstance(param, str): # single video file
-            if param.lower().endswith((".vob", ".m2ts", ".evo", ".mkv", ".mp4", ".avi", ".h264", ".h265", ".hevc", ".avc")):
+            if param.lower().endswith((".vob", ".m2ts", ".evo", ".mkv", ".mp4", ".avi", ".h264", ".h265", ".hevc", ".avc", ".m2v", ".mpg", ".mpeg")):
                 filepath = param
                 filename = Path(filepath).name
             else:
