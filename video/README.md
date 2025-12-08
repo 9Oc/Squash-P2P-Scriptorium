@@ -127,21 +127,17 @@ You can apply any combination of the clip parameters below to each clip.
 
 # Examples
 
-### Trim example
-
 ```
 (r"G:\Hardcore.Henry.2015.MULTi.COMPLETE.BLURAY-RATPACK\BDMV\STREAM\00004.m2ts", "Capelight Pictures GER", 50)
 ```
 
 Trims 50 frames off the start of the file.
 
-### Resize + Dolby Vision example
-
 ```
 (r"H:\Ghostbusters.1984.REPACK.2160p.BluRay.REMUX.DV.HDR.HEVC.TrueHD.7.1.Atmos-BLURANiUM.mkv", "BLURANiUM", Resize(1920, 1080), DOVI)
 ```
 
-### VOB seamless branching example
+Resizes the BLURANiUM remux to 1920x1080 and applies Dolby Vision tonemapping.
 
 ```python
 ((r"H:\XANADU_MAGICAL_MUSIC_EDITION\VIDEO_TS\VTS_01_1.VOB",
