@@ -431,7 +431,7 @@ def main():
     parser.add_argument("page_url", help="Page URL to open")
     args = parser.parse_args()
 
-    outdir = OUTPUT_DIR
+    outdir = Path(OUTPUT_DIR)
     page_url = args.page_url
 
     api_url = "https://cms.35mm.online/umbraco/api/content"
