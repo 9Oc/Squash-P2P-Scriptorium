@@ -135,7 +135,7 @@ def get_tmdbmovie(movie_id: str) -> TMDBMovie | None:
         return None
 
 
-def search_tmdb_movie(title: str, year: int | None = None) -> TMDBMovie | None:
+def search_tmdb_movie(title: str, year: int | None = None, original_title: str | None = None) -> TMDBMovie | None:
     """
     Search TMDB by title and year to find the best matching movie.
     Returns a full TMDBMovie object if a good match is found.
@@ -146,7 +146,8 @@ def search_tmdb_movie(title: str, year: int | None = None) -> TMDBMovie | None:
     params = {
         "api_key": TMDB_API_KEY,
         "query": title,
-        "language": "pl"
+        "language": "pl",
+        "region": "pl",
     }
     if year:
         params["year"] = year
@@ -157,7 +158,7 @@ def search_tmdb_movie(title: str, year: int | None = None) -> TMDBMovie | None:
         data = r.json()
         results = data.get("results", [])
 
-        # if no results and we had a year, retry without year
+        # if no results and we had a year, retry with year+1
         if not results and year:
             year = int(year)
             year += 1
@@ -166,6 +167,7 @@ def search_tmdb_movie(title: str, year: int | None = None) -> TMDBMovie | None:
             r.raise_for_status()
             data = r.json()
             results = data.get("results", [])
+
         # if no results again and we had a year, retry without year
         if not results and year:
             params.pop("year")  # remove year from params
@@ -177,7 +179,15 @@ def search_tmdb_movie(title: str, year: int | None = None) -> TMDBMovie | None:
         if not results:
             return None
 
-        # use the first result as the best match
+        if original_title is not None:
+            # try to find exact match on original title
+            for result in results:
+                if (result.get("original_title") or "").lower() == original_title.lower():
+                    movie_id = result.get("id")
+                    if movie_id:
+                        return get_tmdbmovie(str(movie_id))
+
+        # fallback on using the first result as the best match
         best_match = results[0]
         movie_id = best_match.get("id")
         if not movie_id:
@@ -446,7 +456,6 @@ def main():
     console.print(
         f"[green][35MM][/green] Making api request for page: {page_url}")
     response = requests.get(api_url, headers=headers)
-
     # check if successful
     if response.status_code == 200:
         data = response.json()
