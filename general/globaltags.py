@@ -158,8 +158,9 @@ def main():
     xml_content = generate_xml(tmdb_id, imdb_id, tvdb_id)
     
     # save to file
-    output_filename = f".global_tags_{title}_{tmdb_year}.xml"
+    output_title = title.replace(" ", "_")
     output_title = sanitize(output_title)
+    output_filename = f".global_tags_{output_title}_{tmdb_year}.xml"
     with open(output_filename, 'w', encoding='utf-8') as f:
         f.write(xml_content)
     
