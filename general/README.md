@@ -119,3 +119,17 @@ https://ptpimg.me/9q0qkg.png
 https://ptpimg.me/242928.png
 https://ptpimg.me/9k103c.png[/comparison]
 ```
+
+<h2><a href="https://github.com/9Oc/Squash-P2P-Scriptorium/blob/main/general/slowpic2hdb.js">slowpic2hdb</a></h2>
+
+`slowpic2hdb.js` adds an HDB Rehost button to slowpics comparison collections to re-host the images on HDB and output the comparison bbcode in the format that HDB accepts.
+<hr>
+
+### Usage
+Simply add the script to your Tampermonkey dashboard.
+
+If you are already logged in with cookies to HDB in your browser, the re-hosting will work automatically. If not, fill out your HDB username and passkey in the script:
+```
+const HDB_USERNAME = ""; // leave blank if using cookie-login
+const HDB_PASSKEY = ""; // leave blank if using cookie-login
+```
