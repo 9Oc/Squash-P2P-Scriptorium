@@ -1,16 +1,16 @@
-# Dependencies
+# Dependencies | DO NOT EDIT
 from vstools import vs, core, set_output
 from awsmfunc import FrameInfo, fixlvls, MapDolbyVision
 from awsmfunc.types.placebo import PlaceboColorSpace as ColorSpace
 from awsmfunc.types.placebo import PlaceboTonemapFunction as Tonemap
 from awsmfunc.types.placebo import PlaceboGamutMode as Gamut
-from pathlib import Path
 
 # vspreview comparison script.
 # Author: squash
-# Date: 10/2/2025
+# Date: 15/12/2025
+# Version: 2.01
 
-# Marker objects
+# Marker objects | DO NOT EDIT
 class _LumaMarker:
     def __str__(self):
         return "Luma"
@@ -131,7 +131,7 @@ clips_config = [
 # The framerate to normalize all clips to
 fpsnum, fpsden = 24000, 1001
 
-# Tonemap dicts
+# Tonemap dicts | DO NOT EDIT
 vsplacebo_hdr = {
     "src_csp": ColorSpace.HDR10,
     "dst_csp": ColorSpace.SDR,
@@ -151,6 +151,7 @@ vsplacebo_dovi = {
     "contrast_recovery": 0.0,
 }
 
+# Helper functions | DO NOT EDIT
 def trim_frames(clip: vs.VideoNode, trims):
     """
     Delete frames using std.DeleteFrames.
@@ -179,40 +180,105 @@ def trim_frames(clip: vs.VideoNode, trims):
     
 def insert_blank_frames(clip: vs.VideoNode, positions: list[int], counts: list[int] | int = 1) -> vs.VideoNode:
     """
-    Insert blank frames after specified positions in the clip.
-    Arguments:
-       - clip (vs.VideoNode): Input clip.
-       - positions (list[int]): List of frame indices (in the original clip) after which blank frames are inserted.
-       - counts (list[int] | int): Either a single integer (same count for all positions),
-                                   or a list matching `positions`.
-    Returns:
-        vs.VideoNode: New clip with blank frames inserted.
+    Insert blank frames at specific positions, treating positions as 
+    target indices in the OUTPUT timeline.
     """
     if isinstance(counts, int):
         counts = [counts] * len(positions)
     if len(positions) != len(counts):
         raise ValueError("Positions and counts must have the same length if counts is a list.")
     
+    # Sort by position to handle them in order
     pairs = sorted(zip(positions, counts), key=lambda x: x[0])
+    
     out = []
-    prev = 0
-    offset = 0  # track cumulative offset from inserted frames
+    prev_original_idx = 0
+    cumulative_offset = 0
     
     for pos, count in pairs:
-        # slice from previous position to current position (in original clip)
-        out.append(clip[prev:pos+1])
-        # add blank frames
+        # We need to find "where is this frame in the original source?"
+        # The target position 'pos' includes the 'cumulative_offset' of frames we added previously.
+        # So, the original source index is: pos - cumulative_offset
+        current_original_idx = pos - cumulative_offset
+        
+        # Check to ensure we haven't asked for a position that doesn't exist yet
+        # (e.g., trying to insert at frame 100 when we've only processed 50 source frames)
+        if current_original_idx < prev_original_idx:
+             raise ValueError(f"Position {pos} overlaps with previous insertions.")
+
+        # Slice from where we left off up to the calculated source index
+        # We use current_original_idx + 1 because we want to include the frame AT that index before the blank
+        out.append(clip[prev_original_idx : current_original_idx + 1])
+        
+        # Add the blank frames
         out.append(core.std.BlankClip(clip, length=count))
-        # update offset for next iteration
-        offset += count
-        prev = pos + 1
+        
+        # Update trackers
+        prev_original_idx = current_original_idx + 1
+        cumulative_offset += count
     
-    # append remaining frames
-    out.append(clip[prev:])
+    # Append whatever is left of the original clip
+    out.append(clip[prev_original_idx:])
+    
     return core.std.Splice(clips=out, mismatch=True)
+    
+def needs_decimate(
+    clip: vs.VideoNode,
+    sample_frames: int = 200,     # number of frames to analyze
+    diff_thresh: float = 0.0005,  # lower value = stricter duplicate detection
+    order: int | None = None      # 0: BFF, 1: TFF
+) -> dict:
+    """Detect whether a clip needs decimating."""
+
+    if order is None:
+        # Default to TFF if unspecified
+        fm = core.vivtc.VFM(clip, 1)
+    else:
+        fm = core.vivtc.VFM(clip, order=order)
+
+    # per-frame absolute difference against next frame
+    diff_clip = core.std.PlaneStats(fm, fm.std.Trim(1))
+    total_frames = diff_clip.num_frames
+    start = total_frames // 2
+    end = start + sample_frames
+    low_idxs = []  # frames considered near-duplicates
+    for i in range(start,end):
+        f = diff_clip.get_frame(i)
+        d = float(f.props.get("PlaneStatsDiff", 1.0))
+
+        if d < diff_thresh:
+            low_idxs.append(i)
+
+    if len(low_idxs) < 3:
+        return {
+            "duplicate_ratio": len(low_idxs) / sample_frames,
+            "median_gap": None,
+            "near5_ratio": 0.0,
+            "need_decimate": False,
+            "analyzed_frames": sample_frames
+        }
+
+    gaps = [b - a for a, b in zip(low_idxs, low_idxs[1:])]
+    median_gap = statistics.median(gaps) if gaps else None
+    near5_ratio = (sum(1 for g in gaps if 4 <= g <= 6) / len(gaps)) if gaps else 0.0
+
+    duplicate_ratio = len(low_idxs) / sample_frames
+
+    # Heuristic decision:
+    # - Significant proportion of near-duplicates
+    # - Regular cadence near 5 (3:2 pulldown)
+    need = (duplicate_ratio > 0.12) and (near5_ratio > 0.6)
+    
+    return {
+        "duplicate_ratio": duplicate_ratio,
+        "median_gap": median_gap,
+        "near5_ratio": near5_ratio,
+        "need_decimate": need,
+        "analyzed_frames": sample_frames
+    }
 
 ##############
-# Processing #
+# Processing # DO NOT EDIT
 ##############
 for entry in clips_config:
     filepath, filename, srcname = None, None, None
@@ -220,15 +286,16 @@ for entry in clips_config:
     padding = None
     crop_values = None
     resize = None
+    borders = None
     luma = False
     tonemap_mode = None
     change_fps = True
     el_path = None
-    borders = None
 
     for param in entry:
         if isinstance(param, str): # single video file
-            if param.lower().endswith((".vob", ".m2ts", ".evo", ".mkv", ".mp4", ".avi", ".h264", ".h265", ".hevc", ".avc", ".m2v", ".mpg", ".mpeg")):
+            if param.lower().endswith((".vob", ".m2ts", ".evo", ".mkv", ".mp4", ".avi", ".h264", ".h265", ".hevc", ".avc",
+                                       ".m2v", ".mpg", ".mpeg")):
                 filepath = param
                 filename = Path(filepath).name
             else:
@@ -266,9 +333,23 @@ for entry in clips_config:
         continue
 
     print(f"Loading clip: {filename} ({srcname})")
-    print(f"Normalize FPS: {change_fps}, Trim: {trim_range}, Pad: {padding}, Resize: {resize}, Crop: {crop_values}, Borders: {borders}, Tonemapping: {tonemap_mode}, Output luma adjusted: {luma}")
-    if el_path:
-        print(f"Baking EL: {el_path}")
+    options = [
+        (change_fps,   f"Normalize FPS: {change_fps}"),
+        (trim_range,   f"Trim: {trim_range}"),
+        (padding,      f"Pad: {padding}"),
+        (resize,       f"Resize: {resize}"),
+        (crop_values,  f"Crop: {crop_values}"),
+        (borders,      f"Borders: {borders}"),
+        (tonemap_mode, f"Tonemapping: {tonemap_mode}"),
+        (luma,         f"Output luma adjusted: {luma}"),
+        (el_path,      f"Baking EL: {el_path}")
+    ]
+
+    items = [text for enabled, text in options if enabled]
+
+    for i, text in enumerate(items):
+        branch = "└──" if i == len(items) - 1 else "├──"
+        print(f"  {branch} {text}")
     
     # Load clip(s)
     if isinstance(filepath, tuple):
@@ -279,10 +360,17 @@ for entry in clips_config:
     else:
         clip = core.lsmas.LWLibavSource(filepath)
 
-    # Decimate interlaced frames if clip is an interlaced NTSC DVD
-    if clip.fps_num > 29000 and clip.fps_num < 31000:
-        clip = core.vivtc.VFM(clip, 1)
-        clip = core.vivtc.VDecimate(clip)
+    # Decimate telecined video sources
+    clip_fps = clip.fps_num / clip.fps_den
+    if (clip_fps >= 25 and clip_fps <= 30):
+        order = int(clip.get_frame(0).props.get("_FieldBased"))
+        if order > 0:
+            order = order - 1
+        metrics = needs_decimate(clip, order=order)
+        if metrics.get("need_decimate"):
+            print(f"{filename} detected as telecined, decimated duplicate frames")
+            clip = core.vivtc.VFM(clip, order)
+            clip = core.vivtc.VDecimate(clip)
         
     # Bake EL if provided
     clip_el_baked = None
@@ -310,19 +398,37 @@ for entry in clips_config:
         
     # Resize
     if resize:
+        needs_resampling = resize.width % 2 != 0 or resize.height % 2 != 0
+        if (needs_resampling):
+            clip = clip.resize.Bicubic(format=vs.YUV444P16)
         clip = clip.resize.Spline36(resize.width, resize.height, dither_type="error_diffusion")
+        if (clip.width % 2 == 0 and clip.height % 2 == 0):
+            clip = clip.resize.Bicubic(format=vs.YUV420P10)
         if clip_el_baked:
             clip_el_baked = clip_el_baked.resize.Spline36(resize.width, resize.height, dither_type="error_diffusion")
 
     # Crop
     if crop_values:
-        clip = core.std.CropRel(clip, crop_values.left, crop_values.right, crop_values.top, crop_values.bottom)
+        l = crop_values.left
+        r = crop_values.right
+        t = crop_values.top
+        b = crop_values.bottom
+        needs_resampling = any(v % 2 for v in(l,r,t,b))
+        if (needs_resampling):
+            clip = clip.resize.Bicubic(format=vs.YUV444P16)
+        clip = core.std.CropRel(clip, l, r, t, b)
+        if (clip.width % 2 == 0 and clip.height % 2 == 0):
+            clip = clip.resize.Bicubic(format=vs.YUV420P10)
         if clip_el_baked:
-            clip_el_baked = core.std.CropRel(clip_el_baked, crop_values.left, crop_values.right, crop_values.top, crop_values.bottom)
+            clip_el_baked = core.std.CropRel(clip_el_baked, l, r, t, b)
     
     # Add Borders
     if borders:
+        if any(v % 2 for v in (borders.left, borders.right, borders.top, borders.bottom)):
+            clip = clip.resize.Bicubic(format=vs.YUV444P16)
         clip = core.std.AddBorders(clip, borders.left, borders.right, borders.top, borders.bottom)
+        if (clip.width % 2 == 0 and clip.height % 2 == 0):
+            clip = clip.resize.Bicubic(format=vs.YUV420P10)
         if clip_el_baked:
             clip_el_baked = core.std.AddBorders(clip_el_baked, borders.left, borders.right, borders.top, borders.bottom)
 
