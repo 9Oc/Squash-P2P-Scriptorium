@@ -41,6 +41,7 @@ Plugins required from VSRepoGUI:
 - VSUtil
 - RemapFrames
 - FillBorders
+- vivtc
 
 Plugins required that are not on VSRepo:
 
