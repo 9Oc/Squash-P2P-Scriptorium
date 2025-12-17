@@ -61,6 +61,11 @@ def find_audio_file(directory: Path) -> Path:
     sys.exit(1)
 
 
+def map_to_nearest_fps(calculated_fps, fps_lut):
+    """Map a calculated FPS value to the nearest standard FPS in the lookup table."""
+    return min(fps_lut.keys(), key=lambda x: abs(x - calculated_fps))
+
+
 def extract_sup_events(sup: SUPFile) -> list[tuple[timedelta, timedelta]]:
     # flatten displaysets and segments
     display_sets = [ds for epoch in sup.epochs() for ds in epoch]
@@ -226,7 +231,12 @@ def parse_framerate_factor(log: str) -> float | None:
     # parse the framerate factor from the ffsubsync log
     m = re.search(r"framerate scale factor:\s*([0-9.]+)", log)
     if m:
-        return float(m.group(1))
+        factor = float(m.group(1))
+        if factor == 1.043:
+            factor = 1.0427
+        elif factor == 1.042:
+            factor = 1.04166
+        return factor
     return None
 
 
@@ -513,13 +523,13 @@ def process_sup(mkv_file: Path, sup_in: Path, dirs):
     
     if len(synced_events) != len(events):
         synced_events = synced_events[:min(len(synced_events), len(events))]
-    new_fps_val = None
+    new_fps_val = BDVideo.to_pcsfps(sup.get_fps())
     try:
         if factor is not None and factor != 1.0:
             current_fps_val = float(sup.get_fps().value)
-            new_fps_val = round(current_fps_val / factor, 3)
-        else:
-            new_fps_val = float(sup.get_fps().value)
+            new_fps_val = current_fps_val / factor
+            closest_fps = map_to_nearest_fps(new_fps_val, BDVideo._LUT_PCS_FPS)
+            new_fps_val = BDVideo._LUT_PCS_FPS[closest_fps]
         write_synced_sup(sup, sup_out, synced_events, new_fps_val)
     except Exception as e:
         return f"FAILED (write_sup): {sup_in.name}\n{e}"
