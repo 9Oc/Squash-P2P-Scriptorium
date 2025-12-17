@@ -231,11 +231,6 @@ def parse_framerate_factor(log: str) -> float | None:
     # parse the framerate factor from the ffsubsync log
     m = re.search(r"framerate scale factor:\s*([0-9.]+)", log)
     if m:
-        factor = float(m.group(1))
-        if factor == 1.043:
-            factor = 1.0427
-        elif factor == 1.042:
-            factor = 1.04166
         return factor
     return None
 
