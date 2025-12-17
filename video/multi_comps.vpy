@@ -4,6 +4,7 @@ from awsmfunc import FrameInfo, fixlvls, MapDolbyVision
 from awsmfunc.types.placebo import PlaceboColorSpace as ColorSpace
 from awsmfunc.types.placebo import PlaceboTonemapFunction as Tonemap
 from awsmfunc.types.placebo import PlaceboGamutMode as Gamut
+from pathlib import Path
 
 # vspreview comparison script.
 # Author: squash
