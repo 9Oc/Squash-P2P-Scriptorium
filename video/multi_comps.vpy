@@ -1,4 +1,5 @@
 # Dependencies | DO NOT EDIT
+import statistics
 from vstools import vs, core, set_output
 from awsmfunc import FrameInfo, fixlvls, MapDolbyVision
 from awsmfunc.types.placebo import PlaceboColorSpace as ColorSpace
@@ -118,8 +119,8 @@ def AddBorders(left, right, top, bottom):
 #   (r"file3.vob", "Source3", Luma, NoFPS)
 #   ((r"part1.m2ts", r"part2.m2ts"), "Source4", Resize(1920, 1080), DOVI)
 clips_config = [
-    (r"", "Source1",),
-    (r"", "Source2",),
+    (r"G:\remuxing 2\Samurai.Fiction.1998.1080i.Blu-ray.AVC.LPCM.2.0-MKu\BDMV\STREAM\00000.m2ts", "Media Blasters USA",),
+    (r"G:\remuxing 2\.samurai fiction demux\kor dvd\A1_t00.mkv", "KOR NTSC DVD",Resize(1920,1080)),
     (r"", "Source3",),
     (r"", "Source4",),
     (r"", "Source5",),
@@ -225,23 +226,25 @@ def insert_blank_frames(clip: vs.VideoNode, positions: list[int], counts: list[i
     
 def needs_decimate(
     clip: vs.VideoNode,
-    sample_frames: int = 200,     # number of frames to analyze
+    sample_frames: int = 100,      # number of frames to analyze
     diff_thresh: float = 0.0005,  # lower value = stricter duplicate detection
     order: int | None = None      # 0: BFF, 1: TFF
 ) -> dict:
     """Detect whether a clip needs decimating."""
 
-    if order is None:
+    if order is None or order == 0:
         # Default to TFF if unspecified
-        fm = core.vivtc.VFM(clip, 1)
+        fm = core.vivtc.VFM(clip, order=2)
     else:
         fm = core.vivtc.VFM(clip, order=order)
 
     # per-frame absolute difference against next frame
+    
     diff_clip = core.std.PlaneStats(fm, fm.std.Trim(1))
+    
     total_frames = diff_clip.num_frames
-    start = total_frames // 2
-    end = start + sample_frames
+    start = sample_frames + 2000
+    end = min(total_frames, start + sample_frames)
     low_idxs = []  # frames considered near-duplicates
     for i in range(start,end):
         f = diff_clip.get_frame(i)
@@ -359,7 +362,7 @@ for entry in clips_config:
         for c in clips[1:]:
             clip += c
     else:
-        clip = core.lsmas.LWLibavSource(filepath)
+        clip = core.lsmas.LWLibavSource(filepath,seek_mode=1,threads=1)
 
     # Decimate telecined video sources
     clip_fps = clip.fps_num / clip.fps_den
@@ -367,6 +370,7 @@ for entry in clips_config:
         order = int(clip.get_frame(0).props.get("_FieldBased"))
         if order > 0:
             order = order - 1
+        print(f"{filename} detected as possible telecined source, scanning frames...")
         metrics = needs_decimate(clip, order=order)
         if metrics.get("need_decimate"):
             print(f"{filename} detected as telecined, decimated duplicate frames")
