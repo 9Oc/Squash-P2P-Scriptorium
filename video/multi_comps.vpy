@@ -119,8 +119,8 @@ def AddBorders(left, right, top, bottom):
 #   (r"file3.vob", "Source3", Luma, NoFPS)
 #   ((r"part1.m2ts", r"part2.m2ts"), "Source4", Resize(1920, 1080), DOVI)
 clips_config = [
-    (r"G:\remuxing 2\Samurai.Fiction.1998.1080i.Blu-ray.AVC.LPCM.2.0-MKu\BDMV\STREAM\00000.m2ts", "Media Blasters USA",),
-    (r"G:\remuxing 2\.samurai fiction demux\kor dvd\A1_t00.mkv", "KOR NTSC DVD",Resize(1920,1080)),
+    (r"", "Source1",),
+    (r"", "Source2",),
     (r"", "Source3",),
     (r"", "Source4",),
     (r"", "Source5",),
