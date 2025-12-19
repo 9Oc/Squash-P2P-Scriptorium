@@ -45,7 +45,7 @@ Plugins required from VSRepoGUI:
 
 Plugins required that are not on VSRepo:
 
-`pip install awsmfunc`
+`pip install awsmfunc vstools`
 <hr>
 
 ### Usage
@@ -122,11 +122,15 @@ The order of operations for the clip parameters is:
    Adds black borders to the clip with the specified values (left, right, top, bottom). Example:  
    `AddBorders(10, 0, 22, 22)`
 
-9. **Luma**  
+9. **Decimate**
+   Decimates duplicate frames in telecined video sources. Pass in 0 for Bottom Field order, or 1 for Top Field order. Example:  
+   `Decimate(1)`
+
+11. **Luma**  
    Outputs a duplicate of the clip with the luminance values adjusted to correct gamma-bugged sources.  
    Accepted value: `Luma`
 
-10. **Tonemapping**  
+12. **Tonemapping**  
    Applies tonemapping to HDR/Dolby Vision sources so they can be viewed on SDR screens.  
    Accepted values:  
    - `HDR`: Tonemaps an HDR10 source to SDR.  
