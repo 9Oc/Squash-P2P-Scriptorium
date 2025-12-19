@@ -1,5 +1,4 @@
 # Dependencies | DO NOT EDIT
-import statistics
 from vstools import vs, core, set_output
 from awsmfunc import FrameInfo, fixlvls, MapDolbyVision
 from awsmfunc.types.placebo import PlaceboColorSpace as ColorSpace
@@ -9,8 +8,8 @@ from pathlib import Path
 
 # vspreview comparison script.
 # Author: squash
-# Date: 15/12/2025
-# Version: 2.01
+# Date: 18/12/2025
+# Version: 2.02
 
 # Marker objects | DO NOT EDIT
 class _LumaMarker:
@@ -25,6 +24,12 @@ class _DOVIMarker:
 class _FPSMarker:
     def __str__(self):
         return "No FPS change"
+class _ResizeMarker:
+    def __init__(self, width: int, height: int):
+        self.width = width
+        self.height = height
+    def __str__(self):
+        return f"({self.width}x{self.height})"
 class _CropMarker:
     def __init__(self, left: int, right: int, top: int, bottom: int):
         self.left = left
@@ -33,12 +38,14 @@ class _CropMarker:
         self.bottom = bottom
     def __str__(self):
         return f"(Left:{self.left},Right:{self.right},Top:{self.top},Bottom:{self.bottom})"
-class _ResizeMarker:
-    def __init__(self, width: int, height: int):
-        self.width = width
-        self.height = height
+class _AddBordersMarker:
+    def __init__(self, left: int, right: int, top: int, bottom: int):
+        self.left = left
+        self.right = right
+        self.top = top
+        self.bottom = bottom
     def __str__(self):
-        return f"({self.width}x{self.height})"
+        return f"(Left:{self.left},Right:{self.right},Top:{self.top},Bottom:{self.bottom})"
 class _PadMarker:
     def __init__(self, positions: list[int], counts: list[int] | int = 1):
         if isinstance(counts, int):
@@ -50,34 +57,33 @@ class _PadMarker:
         self.counts = counts
     def __str__(self):
         return "(" + ", ".join(f"after {p}: {c} blank frame(s)" for p, c in zip(self.positions, self.counts)) + ")"
+class _DecimateMarker:
+    def __init__(self, order):
+        self.order = order
+    def __str__(self):
+        return f"Field order ({ {1: 'Top', 0: 'Bottom'}.get(self.order, 'Unknown') })"
 class _BakeELMarker:
     def __init__(self, el_path: str):
         self.el_path = el_path
     def __str__(self):
         return f"(EL: {self.el_path})"
-class _AddBordersMarker:
-    def __init__(self, left: int, right: int, top: int, bottom: int):
-        self.left = left
-        self.right = right
-        self.top = top
-        self.bottom = bottom
-    def __str__(self):
-        return f"(Left:{self.left},Right:{self.right},Top:{self.top},Bottom:{self.bottom})"
 
 Luma = _LumaMarker()
 HDR = _HDRMarker()
 DOVI = _DOVIMarker()
 NoFPS = _FPSMarker()
-def Crop(left, right, top, bottom):
-    return _CropMarker(left, right, top, bottom)
 def Resize(width, height):
     return _ResizeMarker(width, height)
-def Pad(positions, counts):
-    return _PadMarker(positions, counts)
-def BakeEL(el):
-    return _BakeELMarker(el)
+def Crop(left, right, top, bottom):
+    return _CropMarker(left, right, top, bottom)
 def AddBorders(left, right, top, bottom):
     return _AddBordersMarker(left, right, top, bottom)
+def Pad(positions, counts):
+    return _PadMarker(positions, counts)
+def Decimate(order):
+    return _DecimateMarker(order)
+def BakeEL(el):
+    return _BakeELMarker(el)
 
 ##########
 # Config #
@@ -102,6 +108,9 @@ def AddBorders(left, right, top, bottom):
 #       - Crop(left, right, top, bottom) → values to crop the clip with
 #   - Adding Borders:
 #       - AddBorders(left, right, top, bottom) → values to add black borders to the clip with
+#   - Decimate:
+#       - Decimate(order) → Decimates duplicate frames in telecined video sources
+#       - order is an int, accepted values are 0 or 1 (0 for Bottom Field, 1 for Top Field)
 #   - Luma Adjustment:
 #       - Luma → Output an additional clip with luma adjustment for gamma bugged discs
 #   - Tonmapping:
@@ -223,63 +232,7 @@ def insert_blank_frames(clip: vs.VideoNode, positions: list[int], counts: list[i
     out.append(clip[prev_original_idx:])
     
     return core.std.Splice(clips=out, mismatch=True)
-    
-def needs_decimate(
-    clip: vs.VideoNode,
-    sample_frames: int = 100,      # number of frames to analyze
-    diff_thresh: float = 0.0005,  # lower value = stricter duplicate detection
-    order: int | None = None      # 0: BFF, 1: TFF
-) -> dict:
-    """Detect whether a clip needs decimating."""
 
-    if order is None or order == 0:
-        # Default to TFF if unspecified
-        fm = core.vivtc.VFM(clip, order=2)
-    else:
-        fm = core.vivtc.VFM(clip, order=order)
-
-    # per-frame absolute difference against next frame
-    
-    diff_clip = core.std.PlaneStats(fm, fm.std.Trim(1))
-    
-    total_frames = diff_clip.num_frames
-    start = sample_frames + 2000
-    end = min(total_frames, start + sample_frames)
-    low_idxs = []  # frames considered near-duplicates
-    for i in range(start,end):
-        f = diff_clip.get_frame(i)
-        d = float(f.props.get("PlaneStatsDiff", 1.0))
-
-        if d < diff_thresh:
-            low_idxs.append(i)
-
-    if len(low_idxs) < 3:
-        return {
-            "duplicate_ratio": len(low_idxs) / sample_frames,
-            "median_gap": None,
-            "near5_ratio": 0.0,
-            "need_decimate": False,
-            "analyzed_frames": sample_frames
-        }
-
-    gaps = [b - a for a, b in zip(low_idxs, low_idxs[1:])]
-    median_gap = statistics.median(gaps) if gaps else None
-    near5_ratio = (sum(1 for g in gaps if 4 <= g <= 6) / len(gaps)) if gaps else 0.0
-
-    duplicate_ratio = len(low_idxs) / sample_frames
-
-    # Heuristic decision:
-    # - Significant proportion of near-duplicates
-    # - Regular cadence near 5 (3:2 pulldown)
-    need = (duplicate_ratio > 0.12) and (near5_ratio > 0.6)
-    
-    return {
-        "duplicate_ratio": duplicate_ratio,
-        "median_gap": median_gap,
-        "near5_ratio": near5_ratio,
-        "need_decimate": need,
-        "analyzed_frames": sample_frames
-    }
 
 ##############
 # Processing # DO NOT EDIT
@@ -288,9 +241,10 @@ for entry in clips_config:
     filepath, filename, srcname = None, None, None
     trim_range = None
     padding = None
-    crop_values = None
     resize = None
+    crop_values = None
     borders = None
+    decimate = None
     luma = False
     tonemap_mode = None
     change_fps = True
@@ -321,6 +275,8 @@ for entry in clips_config:
             crop_values = param
         elif isinstance(param, _ResizeMarker):
             resize = param
+        elif isinstance(param, _DecimateMarker):
+            decimate = param
         elif param is Luma:
             luma = True
         elif param in (HDR, DOVI):
@@ -344,6 +300,7 @@ for entry in clips_config:
         (resize,       f"Resize: {resize}"),
         (crop_values,  f"Crop: {crop_values}"),
         (borders,      f"Borders: {borders}"),
+        (decimate,     f"Decimate: {decimate}"),
         (tonemap_mode, f"Tonemapping: {tonemap_mode}"),
         (luma,         f"Output luma adjusted: {luma}"),
         (el_path,      f"Baking EL: {el_path}")
@@ -362,20 +319,12 @@ for entry in clips_config:
         for c in clips[1:]:
             clip += c
     else:
-        clip = core.lsmas.LWLibavSource(filepath,seek_mode=1,threads=1)
+        clip = core.lsmas.LWLibavSource(filepath)
 
     # Decimate telecined video sources
-    clip_fps = clip.fps_num / clip.fps_den
-    if (clip_fps >= 25 and clip_fps <= 30):
-        order = int(clip.get_frame(0).props.get("_FieldBased"))
-        if order > 0:
-            order = order - 1
-        print(f"{filename} detected as possible telecined source, scanning frames...")
-        metrics = needs_decimate(clip, order=order)
-        if metrics.get("need_decimate"):
-            print(f"{filename} detected as telecined, decimated duplicate frames")
-            clip = core.vivtc.VFM(clip, order)
-            clip = core.vivtc.VDecimate(clip)
+    if (decimate):
+        clip = core.vivtc.VFM(clip, decimate.order)
+        clip = core.vivtc.VDecimate(clip)
         
     # Bake EL if provided
     clip_el_baked = None
@@ -410,8 +359,6 @@ for entry in clips_config:
         if (clip.width % 2 == 0 and clip.height % 2 == 0):
             clip = clip.resize.Bicubic(format=vs.YUV420P10)
         if clip_el_baked:
-            if (needs_resampling):
-                clip_el_baked = clip_el_baked.resize.Bicubic(format=vs.YUV444P16)
             clip_el_baked = clip_el_baked.resize.Spline36(resize.width, resize.height, dither_type="error_diffusion")
 
     # Crop
@@ -427,21 +374,16 @@ for entry in clips_config:
         if (clip.width % 2 == 0 and clip.height % 2 == 0):
             clip = clip.resize.Bicubic(format=vs.YUV420P10)
         if clip_el_baked:
-            if (needs_resampling):
-                clip_el_baked = clip_el_baked.resize.Bicubic(format=vs.YUV444P16)
             clip_el_baked = core.std.CropRel(clip_el_baked, l, r, t, b)
     
     # Add Borders
     if borders:
-        needs_resampling = any(v % 2 for v in (borders.left, borders.right, borders.top, borders.bottom))
-        if (needs_resampling):
+        if any(v % 2 for v in (borders.left, borders.right, borders.top, borders.bottom)):
             clip = clip.resize.Bicubic(format=vs.YUV444P16)
         clip = core.std.AddBorders(clip, borders.left, borders.right, borders.top, borders.bottom)
         if (clip.width % 2 == 0 and clip.height % 2 == 0):
             clip = clip.resize.Bicubic(format=vs.YUV420P10)
         if clip_el_baked:
-            if (needs_resampling):
-                clip_el_baked = clip_el_baked.resize.Bicubic(format=vs.YUV444P16)
             clip_el_baked = core.std.AddBorders(clip_el_baked, borders.left, borders.right, borders.top, borders.bottom)
 
     # Tonemap if HDR or DOVI marker
