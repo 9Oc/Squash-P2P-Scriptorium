@@ -82,9 +82,8 @@ The order of operations for the clip parameters is:
 6. Resize
 7. Cropping
 8. AddBorders
-9. Decimate
-10. Tonemapping if applicaple
-11. Luma adjustment if applicable
+9. Tonemapping if applicaple
+10. Luma adjustment if applicable
 
 ---
 
