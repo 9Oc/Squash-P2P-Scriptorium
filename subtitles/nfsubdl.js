@@ -1022,7 +1022,7 @@ const downloadAllSubsSequential = async () => {
         const races = [
             tagged(takeSubtitleUrl(10000), 'url'),
             tagged(progress.stop, 'stop'),
-            tagged(asyncSleep(i === 0 ? 0.2 : 10), 'sleep')
+            tagged(asyncSleep(i === 0 ? 0.5 : 10), 'sleep')
         ];
 
         let result;
