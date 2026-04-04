@@ -168,6 +168,7 @@ vsplacebo_hdr = {
     "dynamic_peak_detection": False,
     "gamut_mapping": Gamut.Perceptual,
     "tone_mapping_function": Tonemap.Mobius,
+    "metadata": HdrMetaType.HDR10,
     "use_dovi": False,
     "contrast_recovery": 0.0,
 }
@@ -179,7 +180,7 @@ vsplacebo_hdr10p = {
     # ST2094_40 is theoretically more accurate for dynamic HDR10+ metadata, but if the result is
     # not satisfactory, Mobius can be substituted
     "tone_mapping_function": Tonemap.ST2094_40,
-    "hdr_metadata_type": HdrMetaType.HDR10Plus,
+    "metadata": HdrMetaType.HDR10Plus,
     "use_dovi": False,
     "contrast_recovery": 0.0,
 }
