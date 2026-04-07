@@ -53,3 +53,36 @@ Optionally provide a float with `-w` to change the polling window. This value is
 
 Example output:
 <img src="https://img.onlyimage.org/FC0B9Z.png">
+
+<h2><a href="https://github.com/9Oc/Squash-P2P-Scriptorium/blob/main/audio/plotfreq.py">plotfreq</a>
+<a href="https://www.python.org/downloads/release/python-390/"><img src="https://img.shields.io/badge/Python-3.09%2B-brightgreen" alt="Python 3.09+"></a></h2>
+
+`plotfreq.py` plots the frequency response of each channel in a .flac or .wav audio file.
+
+Dependencies:
+
+`pip install soundfile numpy scipy matplotlib rich`
+
+<a href="https://mediaarea.net/en/MediaInfo/Download">MediaInfo</a> must installed and `MediaInfo.exe` in your PATH.
+<hr>
+
+### Usage
+A path to a FLAC/WAV audio file is the only required argument.
+
+`plotfreq.py input.flac`
+
+Optionally provide these arguments to your preferences:  
+```
+    --nperseg     Segment length for Welch (samples). Default: 65536
+    --noverlap    Overlap between segments (samples). Default: nperseg//2
+    --blocksize   Frames to read at once from disk. Default: 65536
+    --window      Window name passed to scipy.signal.get_window. Default: 'hann'
+    --out, -o     Output image file path. Default: <input>_freq_response.png
+    --dpi         Output image DPI. Default: 140
+    --figsize     Figure size in inches as "W,H". Default: "16,9"
+    --linewidth   Line width for each channel trace. Default: 0.5
+    --labels      Optional channel labels (provide one per channel). Default: automated channel label mapping.
+```
+
+Example output:  
+<a href="https://img.onlyimage.org/Q9ypnG.webp"><img src="https://img.onlyimage.org/Q9ypnG.webp" width="668" height="373"></a>
