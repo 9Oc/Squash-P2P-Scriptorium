@@ -63,7 +63,7 @@ Dependencies:
 
 `pip install soundfile numpy scipy matplotlib rich`
 
-<a href="https://mediaarea.net/en/MediaInfo/Download">MediaInfo</a> must installed and `MediaInfo.exe` in your PATH.
+<a href="https://mediaarea.net/en/MediaInfo/Download">MediaInfo</a> must be installed and `MediaInfo.exe` in your PATH.
 <hr>
 
 ### Usage
