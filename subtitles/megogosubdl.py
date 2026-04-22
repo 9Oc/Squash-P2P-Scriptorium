@@ -27,7 +27,7 @@ from tmdbwrapper.tmdbmovie import TMDBMovie
 from yarl import URL
 
 # output directory for downloaded subtitles
-OUTPUT_DIR = r"E:\.megogo"
+OUTPUT_DIR = r"OUTPUT_DIR_HERE"
 
 NUMBERED_SUFFIX = re.compile(r"^(.*?)-(\d{1,2})(\.[^.]+)?$", re.IGNORECASE)
 RESERVED_DEVICE_NAMES = {
