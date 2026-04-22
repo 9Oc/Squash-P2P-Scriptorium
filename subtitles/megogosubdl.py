@@ -3,7 +3,7 @@
 Download subtitles from Megogo videos.
 
 Dependencies:
-    pip install aiohttp beautifulsoup4 lxml rich git+https://github.com/vevv/subby.git
+    pip install aiohttp beautifulsoup4 lxml rich yarl git+https://github.com/vevv/subby.git
 
 Usage:
     python megogosubdl.py <megogo_url>
@@ -11,21 +11,30 @@ Usage:
 
 import argparse
 import asyncio
+import base64
 import json
+import os
 import re
 from pathlib import Path
+from urllib.parse import urlparse, urlunparse
 
 import aiohttp
 from bs4 import BeautifulSoup
 from rich.console import Console
-from rich.markup import escape
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 from subby import CommonIssuesFixer, SAMIConverter, SDHStripper, SMPTEConverter, WebVTTConverter
+from tmdbwrapper.tmdbmovie import TMDBMovie
+from yarl import URL
 
 # output directory for downloaded subtitles
-OUTPUT_DIR = r"E:\WEB-DL-Subtitles"
+OUTPUT_DIR = r"E:\.megogo"
 
-NUMBERED_SUFFIX = re.compile(r'^(.*?)-(\d{1,2})(\.[^.]+)?$', re.IGNORECASE)
+NUMBERED_SUFFIX = re.compile(r"^(.*?)-(\d{1,2})(\.[^.]+)?$", re.IGNORECASE)
+RESERVED_DEVICE_NAMES = {
+    "CON","PRN","AUX","NUL",
+    "COM1","COM2","COM3","COM4","COM5","COM6","COM7","COM8","COM9",
+    "LPT1","LPT2","LPT3","LPT4","LPT5","LPT6","LPT7","LPT8","LPT9"
+}
 
 console = Console(color_system="truecolor")
 common_issues_fixer = CommonIssuesFixer()
@@ -40,9 +49,80 @@ vtt_converter = WebVTTConverter()
 class MegogoClient:
     def __init__(self, output_dir: Path):
         self.output_dir = output_dir
+        self.output_dir.mkdir(parents=True, exist_ok=True)
         self.connector = aiohttp.TCPConnector(limit=50)
         self.timeout = aiohttp.ClientTimeout(total=60)
-        self.session = aiohttp.ClientSession(connector=self.connector, timeout=self.timeout)
+        self.headers = {
+            "Accept": "*/*",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Expires": "0",
+            "Pragma": "no-cache",
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/145.0.0.0 Safari/537.36"
+            ),
+            "X-Requested-With": "XMLHttpRequest",
+        }
+        self.session = aiohttp.ClientSession(connector=self.connector, headers=self.headers, timeout=self.timeout)
+
+    def _get_csrf_from_play_session(self, video_url: str) -> str | None:
+        """
+        Extract csrf token (JWT) from PLAY_SESSION cookie.
+        Returns token string or None.
+        """
+        # filter_cookies needs a URL to decide domain/path matching
+        cookies = self.session.cookie_jar.filter_cookies(URL(video_url))
+        play_cookie = cookies.get("PLAY_SESSION")
+        if not play_cookie:
+            return None
+        jwt = play_cookie.value
+        try:
+            parts = jwt.split(".")
+            if len(parts) < 2:
+                return None
+            payload_b64 = parts[1]
+            # base64url decode, pad if needed
+            rem = len(payload_b64) % 4
+            if rem:
+                payload_b64 += "=" * (4 - rem)
+            payload_json = base64.urlsafe_b64decode(payload_b64.encode()).decode()
+            payload = json.loads(payload_json)
+            # token may be under payload['data']['csrfToken'] or payload['csrfToken']
+            token = None
+            if isinstance(payload, dict):
+                token = payload.get("data", {}).get("csrfToken") or payload.get("csrfToken")
+            return token
+        except Exception:
+            return None
+
+    async def _ensure_csrf(self, video_url: str) -> None:
+        """
+        Ensure session has cookies and a csrf token header set. If PLAY_SESSION cookie
+        isn't present, fetch the video_url page once to get cookies, then extract token.
+        """
+        if not self.session.cookie_jar.filter_cookies(video_url).get("PLAY_SESSION"):
+            # try HEAD following redirects
+            try:
+                async with self.session.head(video_url, headers={"Referer": video_url}, allow_redirects=True) as resp:
+                    # no body to read for HEAD, context manager ensures response is closed
+                    pass
+            except Exception:
+                pass
+            token = self._get_csrf_from_play_session(video_url)
+            if token:
+                return token
+            # fetch page HTML (will set cookies via Set-Cookie on response)
+            try:
+                async with self.session.get(video_url, headers={"Referer": video_url}) as resp:
+                    # we don't need page text here; cookies are stored in session.cookie_jar
+                    await resp.text()  # consume response to allow cookie processing
+            except Exception:
+                # ignore errors; token extraction will fail gracefully if cookie not present
+                pass
+
+        return self._get_csrf_from_play_session(video_url)
 
     def _extract_video_id(self, url: str) -> str:
         """Extract the numeric video ID from a Megogo URL string."""
@@ -51,15 +131,28 @@ class MegogoClient:
             raise ValueError(f"Could not extract video ID from URL: {url}")
         return match.group(1)
 
-    async def _fetch(self, url: str) -> str:
-        """Fetch a URL and return the response as text."""
-        async with self.session.get(url) as resp:
-            try:
-                resp.raise_for_status()
-                return await resp.text(encoding="utf-8")
-            except Exception as e:
-                console.print(f"[red][MEGOGO CLIENT][/red] Failed to fetch url: {url}\n{e}")
-                return None
+    async def _fetch(self, url: str, headers: dict | None = None, response_type: str = "text", max_retries: int = 3) -> str:
+        """Generic async fetch for text."""
+        if response_type not in ("text", "bytes", "json"):
+            raise ValueError(f"Invalid response_type: {response_type}, must be 'json', 'text', or 'bytes'")
+        merged_headers = {**(self.headers or {}), **(headers or {})}
+        for attempt in range(max_retries + 1):  # +1 to include initial attempt
+            async with self.session.get(url, headers=merged_headers) as resp:
+                try:
+                    resp.raise_for_status()
+                    if response_type == "text":
+                        return await resp.text(encoding="utf-8", errors="replace")
+                    elif response_type == "bytes":
+                        return await resp.read()
+                    elif response_type == "json":
+                        return await resp.json()
+                except Exception as e:
+                    if attempt >= max_retries:
+                        return None
+                    console.print(
+                        f"[red][MEGOGO CLIENT][/] Failed to fetch url: {url}\n{e}\nRetrying in 5 seconds ({attempt + 1}/{max_retries})..."
+                    )
+                    await asyncio.sleep(5)
 
     async def _fetch_release_year(self, video_url: str) -> str | None:
         """
@@ -76,49 +169,42 @@ class MegogoClient:
             return year_tag.get_text(strip=True)
         return None
 
-    async def _download_subtitle(self, subtitle: dict) -> Path:
+    async def _download_subtitle(self, subtitle: dict) -> Path | None:
+        """Download a single subtitle and write its contents to a file."""
         filename = subtitle.get("filename")
-        content_title = subtitle.get("content_title")
-        content_year = subtitle.get("content_year")
         subtitle_text = await self._fetch(subtitle.get("url"))
         if subtitle_text is None:
             return None
 
         subtitle_text = subtitle_text.replace("\r\n", "\n")
-        folder_name = f"{sanitize_filename(content_title, folder=True)} ({content_year})"
-        movie_folder = self.output_dir / folder_name / "Megogo"
-        movie_folder.mkdir(parents=True, exist_ok=True)
-        filepath = movie_folder / filename
+        filepath = self.output_dir / filename
         filepath.write_text(subtitle_text, encoding="utf-8")
         return filepath
 
-    async def download_subtitles(self, video_url: str) -> list[Path]:
+    async def download_subtitles(
+        self, video_url: str, content_title: str | None = None, content_year: str | None = None
+    ) -> list[Path]:
+        # clean query params from URL
+        video_url = urlunparse(urlparse(video_url)._replace(query=""))
+        video_url = video_url.replace(r"/tab_comments", "")
         video_id = self._extract_video_id(video_url)
-        console.print(f"[green][MEGOGO CLIENT][/green] Video ID: [dodger_blue1]{video_id}[/dodger_blue1]")
+        console.print(f"[green][MEGOGO CLIENT][/] Video ID: [dodger_blue1]{video_id}[/]")
 
         api_url = f"https://megogo.net/wb/videoEmbed_v3/stream?lang=en&obj_id={video_id}&drm_type=modular"
-        headers = {
-            "accept": "*/*",
-            "accept-language": "en-US,en;q=0.9",
-            "cache-control": "no-cache, no-store, must-revalidate",
-            "expires": "0",
-            "pragma": "no-cache",
-            "referer": video_url,
-            "user-agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/145.0.0.0 Safari/537.36"
-            ),
-            "x-requested-with": "XMLHttpRequest",
-        }
-        self.session.headers.update(headers)
 
-        # fetch API response to get master playlist
-        console.print(f"[green][MEGOGO CLIENT][/green] Fetching metadata for {video_url}")
+        # fetch API response that contains subtitle dicts and metadata
+        console.print(f"[green][MEGOGO CLIENT][/] Fetching metadata for {video_url}")
+        api_headers = {"Referer": video_url}
+        # megogo generates a csrf token and stores it in the PLAY_SESSION cookie.
+        # on first request, the cookie isn't set so the API allows the request without it,
+        # but on subsequent requests from the same session, the API will reject requests that don't include the token
+        csrf_token = await self._ensure_csrf(video_url)
+        if csrf_token:
+            api_headers["csrf-token"] = csrf_token
         try:
-            api_text = await self._fetch(api_url)
-            api_json = json.loads(api_text)
-            year = await self._fetch_release_year(video_url)
+            api_json = await self._fetch(api_url, headers=api_headers, response_type="json")
+            #api_json = json.loads(api_text)
+            year = content_year or await self._fetch_release_year(video_url)
         except Exception as e:
             console.print(f"[red]Error fetching API data:[/red] {e}")
             return []
@@ -127,14 +213,12 @@ class MegogoClient:
         video_json = api_json["data"]["widgets"]["videoEmbed_v3"]["json"]
         subtitles = video_json.get("subtitles", [])
         if not subtitles:
-            console.print("[yellow][MEGOGO CLIENT][/yellow] No subtitles available for download")
+            console.print("[yellow][MEGOGO CLIENT][/] No subtitles available for download")
             return []
-        title = video_json.get("title", video_id)
-        console.print(
-            f"[green][MEGOGO CLIENT][/green] Title: [sea_green2]{title}[/sea_green2] ([dodger_blue1]{year}[/dodger_blue1])"
-        )
-        console.print(f"[green][MEGOGO CLIENT][/green] Found [orange1]{len(subtitles)}[/orange1] subtitle(s)")
-        
+        title = content_title or video_json.get("title", video_id)
+        console.print(f"[green][MEGOGO CLIENT][/] Title: [sea_green2]{title}[/] ([dodger_blue1]{year}[/])")
+        console.print(f"[green][MEGOGO CLIENT][/] Found [orange1]{len(subtitles)}[/] subtitle(s)")
+
         subs = []
         used_filenames = set()
         for subtitle in subtitles:
@@ -142,23 +226,30 @@ class MegogoClient:
             if subtitle_language == "en":
                 subtitle_language = "en-US"
             subtitle_type = subtitle.get("display_name").lower()
-            if any(s in subtitle_type for s in ("forced","auto","авто")):
+            if "azerbaijani" in subtitle_type:
+                subtitle_language = "az"
+            if any(s in subtitle_type for s in ("forced", "auto", "авто")):
                 subtitle_type = "[forced]"
+                continue
             elif "sdh" in subtitle_type:
                 subtitle_type = "[sdh]"
             else:
                 subtitle_type = ""
             subtitle_url = subtitle.get("url")
-            filename = f"{sanitize_filename(title)}.{year}.MEGOGO.WEB.{subtitle_language}{subtitle_type}.srt"
-            filename = get_unique_filename(filename, used_filenames)
-            subs.append({
-                "language": subtitle_language,
-                "type": subtitle_type,
-                "url": subtitle_url,
-                "filename": filename,
-                "content_title": title,
-                "content_year": year
-            })
+            filename = sanitize_string(f"{title}.{year}.MEGOGO.WEB")
+            filename += f".{subtitle_language}{subtitle_type}.srt"
+            filepath = self.output_dir / filename
+            filename = get_unique_filename(filepath, used_filenames).name
+            subs.append(
+                {
+                    "language": subtitle_language,
+                    "type": subtitle_type,
+                    "url": subtitle_url,
+                    "filename": filename,
+                    "content_title": title,
+                    "content_year": year,
+                }
+            )
         results = []
         with Progress(
             SpinnerColumn(),
@@ -167,9 +258,7 @@ class MegogoClient:
             TaskProgressColumn(),
             console=console,
         ) as progress:
-            task_id = progress.add_task(
-                "[green][MEGOGO CLIENT][/green] Downloading subtitles", total=len(subs)
-            )
+            task_id = progress.add_task("[green][MEGOGO CLIENT][/] Downloading subtitles", total=len(subs))
             subtitle_tasks = [asyncio.create_task(self._download_subtitle(subtitle)) for subtitle in subs]
             for i, finished in enumerate(asyncio.as_completed(subtitle_tasks)):
                 try:
@@ -186,22 +275,54 @@ class MegogoClient:
         for result in results:
             if isinstance(result, Path):
                 successes += 1
-        console.print(
-            f"[green][MEGOGO CLIENT][/green] Successfully downloaded [orange1]{successes}[/orange1] subtitle(s)"
-        )
+        console.print(f"[green][MEGOGO CLIENT][/] Successfully downloaded [orange1]{successes}[/] subtitle(s)")
         return results
 
 
-def sanitize_filename(name: str, folder: bool = False) -> str:
-    if not name:
+def sanitize_string(text: str, folder: bool = False) -> str:
+    """
+    Sanitizes a string to be safe for use as a file or folder name on Windows/macOS/Linux.
+
+    Args:
+        text (str): The string to sanitize.
+        folder (bool): Whether the string is intended to be a folder name or filename. Defaults to False.
+    Returns:
+        str: The sanitized string, or an empty string if the input was Falsey.
+    """
+    if not text:
         return ""
-    s = re.sub(r'[\x00-\x1f<>:"/\\|?*\x7f]+', " ", name).strip()
-    if not folder:
-        s = s.replace(".-.", "-")
+    s = re.sub(r'[\x00-\x1f<>:"/\\|?*\x7f\xa0]+', " ", text).strip()  # strip invalid chars for Windows/macOS/Linux
+    if folder:
+        s = re.sub(r"\s+", " ", s)
+        s = re.sub(r"[‐–—⁃]", "-", s)  # replace bad hyphens
+    else:
+        s = s.replace("…", ".")
         s = re.sub(r"\s+", ".", s)
         s = re.sub(r"\.+", ".", s)
         s = s.strip(".")
-    return s or ""
+        s = re.sub(r"\.(?:-|‐|–|—|⁃)\.", ".", s)  # fix bad hyphen types
+        s = s.replace(",.", ".")
+    if os.name == "nt":
+        s = make_windows_safe(s)
+    return s.strip() or ""
+
+
+def make_windows_safe(text: str) -> str:
+    """
+    Sanitize a string to be safe for Windows file names.
+    Appends '_' to any reserved Windows device names (CON, PRN, AUX, NUL, COM1-COM9, LPT1-LPT9)
+    if they would cause an OSError to be thrown by the filesystem.
+
+    Args:
+        text (str): The input string to sanitize.
+    Returns:
+        str: The sanitized string with reserved names modified to be safe for Windows file names.
+    """
+    # split by dot to check each component
+    parts = text.split(".", 1)
+    if parts and parts[0].rstrip(" .").upper() in RESERVED_DEVICE_NAMES:
+        parts[0] += "_"
+    return ".".join(parts)
 
 
 def get_unique_filename(file_path: str | Path, used_filenames: set[str] = None) -> Path:
@@ -289,23 +410,21 @@ async def main():
     parser = argparse.ArgumentParser(description="Download subtitles from the given Megogo video URL.")
     parser.add_argument("url", help="Megogo video URL")
     args = parser.parse_args()
-
     client = MegogoClient(output_dir=Path(OUTPUT_DIR))
-    subtitles = await client.download_subtitles(args.url)
-    if not subtitles:
-        console.print("[yellow][MEGOGO CLIENT][/yellow] No subtitles available for download")
-        return
+    url = args.url
     try:
-        with console.status(
-            "[green][CLEANUP][/green] Running cleanup tasks",
-            spinner="dots",
-            spinner_style="white",
-            speed=0.9,
-        ):
-            for subtitle in subtitles:
-                if isinstance(subtitle, Path):
-                    fix_common_issues(subtitle)
-        console.print("[green][CLEANUP][/green] Cleanup complete")
+        subtitles = await client.download_subtitles(url)
+        if subtitles:
+            with console.status(
+                "[green][CLEANUP][/] Running cleanup tasks",
+                spinner="dots",
+                spinner_style="white",
+                speed=0.9,
+            ):
+                for subtitle in subtitles:
+                    if isinstance(subtitle, Path):
+                        fix_common_issues(subtitle)
+            console.print("[green][CLEANUP][/] Cleanup complete")
     finally:
         await client.session.close()
 
