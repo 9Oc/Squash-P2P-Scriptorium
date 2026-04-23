@@ -1,6 +1,9 @@
 """
 Usage: python getlang.py "path\\to\\subtitle.srt"
 Supported languages: en, es, pt
+
+Dependencies:
+    pip install rich git+https://github.com/vevv/subby.git
 """
 import re
 import sys
