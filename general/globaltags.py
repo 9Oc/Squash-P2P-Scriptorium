@@ -5,7 +5,7 @@ Generates an MKV global tags XML file using TMDB ID.
 Dependencies:
 pip install tvdb_v4_official requests rich
 
-@version 1.4
+@version 1.5
 """
 
 import re
@@ -18,8 +18,8 @@ from rich import print
 from tvdb_v4_official import TVDB
 
 # config
-TMDB_API_KEY = "YOUR_TMDB_API_KEY"
-TVDB_API_KEY = "YOUR_TVDB_API_KEY"
+TMDB_API_KEY = ""
+TVDB_API_KEY = ""
 
 tvdb = TVDB(TVDB_API_KEY)
 
@@ -32,28 +32,27 @@ def sanitize(text: str) -> str:
     return text.strip()
 
 
-def get_imdb_id_from_tmdb(tmdb_id: str) -> tuple[str | None]:
+def get_tmdb_info(tmdb_id: str) -> dict[str | None]:
     """Get IMDB ID from TMDB movie ID."""
     url = f"https://api.themoviedb.org/3/movie/{tmdb_id}"
     params = {"api_key": TMDB_API_KEY}
-
+    movie = {"imdb_id": None, "title": None, "year": None}
     try:
         r = requests.get(url, params=params, timeout=10)
         r.raise_for_status()
         data = r.json()
 
-        imdb_id = data.get("imdb_id")
-        title = data.get("title")
-        year = None
+        movie["imdb_id"] = data.get("imdb_id")
+        movie["title"] = data.get("title")
 
         release_date = data.get("release_date")
         if release_date and len(release_date) >= 4:
-            year = release_date[:4]
+            movie["year"] = release_date[:4]
 
-        return imdb_id, title, year
+        return movie
     except Exception as e:
         print(f"Error fetching TMDB data: {e}")
-        return None, None, None
+        return movie
 
 
 def find_movie_objects(obj: list[dict] | dict) -> list[dict]:
@@ -208,13 +207,16 @@ def main():
 
     print(f"Fetching data for TMDB ID: [orange1]{tmdb_id}[/orange1]")
 
-    imdb_id, title, tmdb_year = get_imdb_id_from_tmdb(tmdb_id)
+    tmdb_movie = get_tmdb_info(tmdb_id)
+    imdb_id = tmdb_movie.get("imdb_id")
+    title = tmdb_movie.get("title")
+    year = tmdb_movie.get("year")
 
     if not title:
         print("Error: Could not fetch movie data from TMDB")
         sys.exit(1)
 
-    print(f"\nTMDB match: [sea_green2]{title}[/sea_green2] ({tmdb_year})")
+    print(f"\nTMDB match: [sea_green2]{title}[/sea_green2] ({year})")
     print(f"TMDB ID: [orange1]{tmdb_id}[/orange1]")
     print(f"TMDB URL: [dodger_blue1]https://www.themoviedb.org/movie/{tmdb_id}[/dodger_blue1]")
     if imdb_id:
@@ -223,7 +225,7 @@ def main():
     else:
         print("Warning: IMDB ID not found")
 
-    tvdb_movie = get_tvdb_movie_id(imdb_id, title, tmdb_year)
+    tvdb_movie = get_tvdb_movie_id(imdb_id, title, year)
     tvdb_id = tvdb_movie["tvdb_id"]
     tvdb_title = tvdb_movie["title"]
     tvdb_year = tvdb_movie["year"]
@@ -241,7 +243,7 @@ def main():
     # save to file
     output_title = title.replace(" ", "_")
     output_title = sanitize(output_title)
-    output_filename = f".global_tags_{output_title}_{tmdb_year}.xml"
+    output_filename = f".global_tags_{output_title}_{year}.xml"
     with open(output_filename, 'w', encoding='utf-8') as f:
         f.write(xml_content)
 
