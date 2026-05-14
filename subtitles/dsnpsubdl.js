@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name           Disney+ Subtitle Downloader
 // @description    Download subtitles from Disney+
-// @version        1.5
+// @version        1.6
 // @author         squasher
 // @license        MIT; https://opensource.org/licenses/MIT
 // @match          https://www.disneyplus.com/*
@@ -37,6 +37,17 @@
         document.listen = true;
     }
 
+    function stripURL(url) {
+        if (!url) return url;
+        // remove fragment
+        url = url.split('#')[0];
+        // remove query params
+        url = url.split('?')[0];
+        // remove disney signed token prefix
+        url = url.replace(/https:\/\/[^\/]+\/dvt\d+=.*?\//, '');
+        return url;
+    }
+
     function start() {
         debug("start");
         if (typeof document.initaudio !== "undefined") document.initaudio();
@@ -53,7 +64,7 @@
                 return origFetch(resource, init).then(function(response) {
                     try {
                         if (response && response.ok && url) {
-                            let norm = url.split('#')[0];
+                            let norm = stripURL(url);
                             if (norm.match(/\.m3u8(\?.*)?$/i) || norm.match(/\.vtt(\?.*)?$/i)) {
                                 // clone & read text asynchronously, cache it
                                 response.clone().text().then(function(text) {
@@ -165,7 +176,7 @@
                     var url = this._dsnpUrl || "";
                     if (!url) return;
                     // normalize to remove fragment
-                    var norm = url.split('#')[0];
+                    var norm = stripURL(url);
                     if (norm.match(/\.m3u8(\?.*)?$/i) || norm.match(/\.vtt(\?.*)?$/i)) {
                         // only cache successful responses
                         if (this.status === 200 && typeof this.responseText === 'string') {
@@ -234,7 +245,7 @@
         // short tokens (< 500 chars) are pre-flight tokens and should be filtered
         if (document.disneyAuthToken.length < 500) {
             debug("Waiting for full auth token (current length: "
-                     + (document.disneyAuthToken ? document.disneyAuthToken.length : 0) + ")");
+                  + (document.disneyAuthToken ? document.disneyAuthToken.length : 0) + ")");
             return;
         }
 
@@ -588,9 +599,9 @@
 
     function getpagecontent(callback, url) {
         debug("getpagecontent requested: " + url);
-        var norm = url.split('#')[0];
+        var norm = stripURL(url);
 
-        // try cache first, exact match then near-match
+        // try cache first
         // returns true and fires callback if found
         function checkCache() {
             try {
@@ -633,7 +644,7 @@
 
         http.onloadend = function() {
             if (http.readyState == 4 && http.status == 200) {
-                try { window._dsnpCache[url.split('#')[0]] = http.responseText; } catch(e){}
+                try { window._dsnpCache[stripURL(url)] = http.responseText; } catch(e){}
                 callback(http.responseText);
             } else if (http.status === 404) {
                 debug("Not found (404) for " + url);
@@ -642,7 +653,7 @@
                 debug("Forbidden (403) for " + url);
                 callback("");
             } else if (http.status === 0) {
-                // status 0 = CORS block or network error — retrying will not help
+                // status 0 = CORS block or network error, cannot retry
                 debug("XHR blocked (CORS or network) for " + url);
                 callback("");
             } else {
