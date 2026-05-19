@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name           Disney+ Subtitle Downloader
 // @description    Download subtitles from Disney+
-// @version        1.6
+// @version        1.7
 // @author         squasher
 // @license        MIT; https://opensource.org/licenses/MIT
 // @match          https://www.disneyplus.com/*
@@ -103,10 +103,27 @@
         document.segid = 0;
         document.vttlist = [];
 
-        // add download icon
-        document.styleSheets[0].addRule('#subtitleTrackPicker > div:before','content:"";color:#fff;padding-right:25px;padding-top:2px;background:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAAIGNIUk0AAHonAACAgwAA+mQAAIDSAAB2hgAA7OkAADmeAAAV/sZ+0zoAAAE4SURBVHja1JS7LkRRFIa/M6aYRCEuCUEUgihFBolGVGqiFY1ConfpNB7CiygUGm8hOiMukwiCCMl8mj2xc5yZM8M0/mTlrLP2v75zydo7UclRL3AGlIAl4L6ZuUC+5oEZYBoo55lbAdai/LPTwFongG3pfwI3gZ3ovhjlXVG+BWz/6FbjKPuto1CbjWoLobYf1RZjRho4pt5F5g11QK2F6FFXo/UXdbwZEHVQvY2aztWPECdR/TkNawREHUpB03pSJ7J6Cf9gL3xOvDiiXmfAHtSplLek7qorqI/BeJjxxFG1kgNDPQjrn4VoLPozRqgCzAGXwFXILzJ8w+H6XgRegW7grcGs3gCTOfP8UgfGg139wwapxrugDl0H+oCkTZjAcsiTxBaO7HZUBI6BtfCmv4Un4aw8/RoA7wq6AO4uOhAAAAAASUVORK5CYII=) no-repeat right;width:20px;height:20px;position:absolute;top:6px;right:10px;opacity:0.6;cursor:pointer;');
-        document.styleSheets[0].addRule('#subtitleTrackPicker > div:hover:before','opacity:1;');
-        document.styleSheets[0].addRule('#subtitleTrackPicker > div:first-child:before','content:"All";');
+        // Inject a floating "DL Subs" button in the top-right corner
+        if (!document.getElementById('dsnp-dl-btn')) {
+            var btn = document.createElement('button');
+            btn.id = 'dsnp-dl-btn';
+            btn.textContent = 'DL Subs';
+            btn.style.cssText = 'position:fixed;top:12px;right:12px;z-index:99999;' +
+                'background:#0063e5;color:#fff;border:none;border-radius:6px;' +
+                'padding:8px 14px;font-size:13px;font-weight:bold;cursor:pointer;opacity:0.85;';
+            btn.addEventListener('mouseenter', function() { this.style.opacity = '1'; });
+            btn.addEventListener('mouseleave', function() { this.style.opacity = '0.85'; });
+            btn.addEventListener('click', function() {
+                if (!document.langs || document.langs.length === 0) {
+                    alert('No subtitles found yet. Start playing the video first.');
+                    return;
+                }
+                document.zip = new JSZip();
+                document.downloadall = true;
+                downloadnext();
+            });
+            document.body.appendChild(btn);
+        }
 
         // prepare retry map for 403 retries
         if (typeof window._dsnpRetries === 'undefined') window._dsnpRetries = {};
@@ -268,7 +285,7 @@
             if (http.readyState == 4 && http.status == 200) {
                 try {
                     var resp = JSON.parse(http.responseText);
-                    console.log(resp);
+                    //console.log(resp);
                     var contentTitle = resp?.data?.page?.visuals?.title;
                     var year = resp?.data?.page?.visuals?.metastringParts?.releaseYearRange?.startYear;
                     if (contentTitle) {
@@ -394,8 +411,6 @@
     function buttonhandle() {
         var buttons = document.getElementsByClassName("control-icon-btn");
         if (buttons.length > 0) {
-            if (typeof document.clickhandlesub !== "undefined") document.clickhandlesub();
-            if (typeof document.clickhandleaudio !== "undefined") document.clickhandleaudio();
             // movie
             var titleElem = document.getElementsByClassName("title-field")[0];
             if (titleElem && titleElem.innerText && titleElem.innerText.trim().length > 0) {
@@ -405,7 +420,25 @@
             // episode
             var epElem = document.getElementsByClassName("subtitle-field")[0];
             if (epElem && epElem.innerText && epElem.innerText.trim().length > 0) document.episode = epElem.innerText.trim();
-            //if (document.getElementsByClassName("subtitle-field").length > 0) document.episode = document.getElementsByClassName("subtitle-field")[0]?.innerText
+        }
+
+        // show button only on /play/ pages
+        var dlBtn = document.getElementById('dsnp-dl-btn');
+        if (dlBtn) {
+            dlBtn.style.display = /\/play\//.test(window.location.pathname) ? 'block' : 'none';
+            if (!document.langs || document.langs.length === 0) {
+                dlBtn.textContent = 'Waiting for subtitles to load...';
+                dlBtn.disabled = true;
+                dlBtn.style.background = '#555';
+                dlBtn.style.cursor = 'not-allowed';
+            } else {
+                if (document.downloadid < 1) {
+                    dlBtn.textContent = 'DL Subs';
+                    dlBtn.disabled = false;
+                    dlBtn.style.background = '#3EB489';
+                    dlBtn.style.cursor = 'pointer';
+                }
+            }
         }
 
         if (document.oldlocation != window.location.href && document.oldlocation != null) {
@@ -418,50 +451,17 @@
         document.oldlocation = window.location.href;
     }
 
-    document.clickhandlesub = function() {
-        var picker = document.getElementsByClassName("options-picker subtitle-track-picker");
-        if (picker && picker[0]) {
-            picker[0].childNodes.forEach(function(child) {
-                var element = child.childNodes[0];
-                if (child.onclick == null) child.onclick = selectsub;
-            });
-        }
-    }
-
-    function selectsub(e) {
-        debug("selectsub");
-        var width = this.offsetWidth;
-        // check click position
-        if (e.layerX >= width - 30 && e.layerX <= width - 10 && e.layerY >= 5 && e.layerY <= 25) {
-            var lang = this.childNodes[0].childNodes[1].innerHTML;
-            if (lang == "Off") {
-                // download all subs
-                debug("Download all subs");
-                document.zip = new JSZip();
-                document.downloadall = true;
-                document.downloadid = -1;
-                downloadnext();
-            } else {
-                // download one sub
-                document.downloadall = false;
-                download(lang);
-            }
-            // cancel selection
-            return false;
-        }
-    }
-
     function downloadnext() {
         document.downloadid++;
-
+        const button = document.getElementById('dsnp-dl-btn');
         if (document.downloadid < document.langs.length) {
-            document.styleSheets[0].addRule('#subtitleTrackPicker > div:first-child:before','padding-right:35px;content:"' + Math.round((document.downloadid / document.langs.length) * 100) + '%";');
+            if (button) button.textContent = `${document.downloadid}/${document.langs.length}`;
+            debug("Downloading " + Math.round((document.downloadid / document.langs.length) * 100) + "%");
             download(document.langs[document.downloadid].NAME, false, false);
         } else {
             debug("Subs downloaded");
             clearInterval(document.downloadinterval);
-            document.styleSheets[0].addRule('#subtitleTrackPicker > div:first-child:before','padding-right:25px;content:"All";');
-
+            if (button) button.textContent = "Saving zip";
             debug("Save zip");
             document.zip.generateAsync({type:"blob"}).then(function(content) {
                 var output = document.filename;
@@ -470,6 +470,8 @@
                 output += ".DSNP.WEB"
                 saveAs(content, output + ".zip");
             });
+            if (button) button.textContent = "DL Subs";
+            document.downloadid = 0;
         }
     }
 
@@ -566,6 +568,7 @@
 
         let lang = document.langs[document.langid].LANGUAGE;
         if (lang == "en") lang = "en-US";
+        if (lang == "zh-HK") lang = "zh-Hant-HK";
         output += "." + lang;
         console.log(document.langs[document.langid]);
 
