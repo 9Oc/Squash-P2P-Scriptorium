@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Movie/TV Database Circus
 // @namespace    http://tampermonkey.net/
-// @version      1.5
+// @version      1.6
 // @description  Add extenal ID buttons to tmdb.org, imdb.com, and thetvdb.com
 // @author       SiUwU squashski
 // @match        https://www.imdb.com/title/*
@@ -182,93 +182,87 @@
     }
 
     function displayStreamingProviders(data) {
-        if (data.results) {
-            const container = document.createElement('div');
-            container.style.position = 'fixed';
-            container.style.top = '50%';
-            container.style.right = '20px';
-            container.style.transform = 'translateY(-50%)';
-            container.style.width = '350px';
-            container.style.padding = '10px';
-            container.style.border = '1px solid #ddd';
-            container.style.backgroundColor = '#f9f9f9';
-            container.style.maxHeight = '50vh';
-            container.style.overflowY = 'auto';
-            container.style.zIndex = '1000';
+        if (!data.results) return;
+        let visible = true;
 
-            const table = document.createElement('table');
-            table.style.width = '100%';
-            table.style.border = '1px solid #ddd';
-            table.style.borderCollapse = 'collapse';
-            table.style.fontFamily = "Helvetica, sans-serif";
+        const btn = document.createElement('button');
+        btn.innerText = 'Hide Providers';
+        btn.style.cssText = `
+            position: fixed;
+            top: calc(50vh - 300px - 30px);
+            right: 20px;
+            padding: 4px 10px;
+            font-size: 13px;
+            background: #16707f;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            z-index: 1001;`;
 
-            const header = table.insertRow();
-            header.style.backgroundColor = '#f2f2f2';
-            header.style.fontWeight = 'bold';
-            header.style.color = '#000000';
-            header.insertCell().innerText = 'CC';
-            header.insertCell().innerText = 'Country';
-            header.insertCell().innerText = 'Providers';
+        const panel = document.createElement('div');
+        panel.style.cssText = `
+            position: fixed;
+            top: calc(50vh - 300px);
+            right: 20px;
+            width: 400px;
+            max-height: 600px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            background: #f9f9f9;
+            z-index: 1000;`;
 
-            const countryNames = new Intl.DisplayNames(['en'], { type: 'region' });
+        const table = document.createElement('table');
+        table.style.cssText = `width: 100%; border-collapse: collapse; font-family: Helvetica, sans-serif;`;
 
-            for (const [countryCode, providerInfo] of Object.entries(data.results)) {
-                const row = table.insertRow();
-                row.style.border = '1px solid #ddd';
+        const header = table.insertRow();
+        header.style.background = '#f2f2f2';
+        header.style.fontWeight = 'bold';
+        header.style.color = '#000000';
 
-                const countryCodeCell = row.insertCell();
-                countryCodeCell.innerText = countryCode;
-                countryCodeCell.style.padding = '8px';
+        const ccHeader = header.insertCell()
+        ccHeader.innerText = 'CC';
+        ccHeader.style.padding = '6px';
+        const cHeader = header.insertCell();
+        cHeader.innerText = 'Country';
+        cHeader.style.padding = '6px';
+        const pHeader = header.insertCell();
+        pHeader.innerText = 'Providers';
+        pHeader.style.padding = '6px';
 
-                const countryNameCell = row.insertCell();
-                countryNameCell.innerText = countryNames.of(countryCode) || 'Unknown';
-                countryNameCell.style.padding = '8px';
+        const countryNames = new Intl.DisplayNames(['en'], { type: 'region' });
 
-                const providersCell = row.insertCell();
-                providersCell.style.padding = '8px';
-                let providerDetails = [];
+        for (const [code, info] of Object.entries(data.results)) {
+            const row = table.insertRow();
+            row.style.border = '1px solid #ddd';
+            const c1 = row.insertCell();
+            const c2 = row.insertCell();
+            const c3 = row.insertCell();
+            c1.innerText = code;
+            c2.innerText = countryNames.of(code) || 'Unknown';
 
-                if (providerInfo.flatrate) {
-                    providerDetails.push(
-                        ...providerInfo.flatrate.map(
-                            provider => `${provider.provider_name} (Flatrate)`
-                        )
-                    );
-                }
-                if (providerInfo.ads) {
-                    providerDetails.push(
-                        ...providerInfo.ads.map(
-                            provider => `${provider.provider_name} (Ads)`
-                        )
-                    );
-                }
-                if (providerInfo.rent) {
-                    providerDetails.push(
-                        ...providerInfo.rent.map(
-                            provider => `${provider.provider_name} (Rent)`
-                        )
-                    );
-                }
-                if (providerInfo.buy) {
-                    providerDetails.push(
-                        ...providerInfo.buy.map(
-                            provider => `${provider.provider_name} (Buy)`
-                        )
-                    );
-                }
+            let list = [];
+            if (info.flatrate) list.push(...info.flatrate.map(p => `${p.provider_name} (Flatrate)`));
+            if (info.ads) list.push(...info.ads.map(p => `${p.provider_name} (Ads)`));
+            if (info.rent) list.push(...info.rent.map(p => `${p.provider_name} (Rent)`));
+            if (info.buy) list.push(...info.buy.map(p => `${p.provider_name} (Buy)`));
+            c3.innerText = list.length ? list.join(', ') : 'N/A';
 
-                providersCell.innerText = providerDetails.length > 0 ? providerDetails.join(', ') : 'N/A';
-                for (const cell of row.cells) {
-                    cell.style.backgroundColor = '#f9f9f9';
-                    cell.style.color = '#000000';
-                }
+            for (const cell of row.cells) {
+                cell.style.cssText = `padding: 6px; background: #f9f9f9; color: #000; border: 1px solid #ddd;`;
             }
-
-            container.appendChild(table);
-            document.body.appendChild(container);
-        } else {
-            console.log('No streaming provider information available for this title.');
         }
+
+        panel.appendChild(table);
+
+        btn.onclick = () => {
+            visible = !visible;
+            panel.style.display = visible ? 'block' : 'none';
+            btn.innerText = visible ? 'Hide Providers' : 'Show Providers';
+        };
+
+        document.body.appendChild(btn);
+        document.body.appendChild(panel);
     }
 
     (async () => {
@@ -336,6 +330,7 @@
                 wrapper.appendChild(tmdbButton);
             }
         }
+
         // fetch and display streaming providers
         if (contentType) {
             const providerApiUrl = `https://api.themoviedb.org/3/${contentType}/${tmdbId}/watch/providers?api_key=${TMDB_API_KEY}`;
