@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Movie/TV Database Circus
 // @namespace    http://tampermonkey.net/
-// @version      1.6
+// @version      1.7
 // @description  Add extenal ID buttons to tmdb.org, imdb.com, and thetvdb.com
 // @author       SiUwU squashski
 // @match        https://www.imdb.com/title/*
@@ -116,8 +116,10 @@
                 slug = results[0].movie.slug;
                 contentType = "movies"
             } catch (error) {
-                slug = results[0].series.slug;
-                contentType = "series"
+                try {
+                    slug = results[0].series.slug;
+                    contentType = "series"
+                } catch (error) {return null;}
             }
             return `${contentType}/${slug}`;
         } else if (hostname === 'www.thetvdb.com') {
@@ -291,8 +293,8 @@
                         const parent = titleElement.parentNode;
                         parent.insertBefore(wrapper, titleElement);
                         wrapper.appendChild(titleElement);
-                        wrapper.appendChild(tmdbButton);
-                        wrapper.appendChild(tvdbButton);
+                        if (tmdbId) wrapper.appendChild(tmdbButton);
+                        if (tvdbSlug) wrapper.appendChild(tvdbButton);
                     }
                 }
             }
@@ -305,8 +307,8 @@
             if (titleElement) {
                 imdbButton.onclick = () => window.open(`https://www.imdb.com/title/${imdbId}/`, '_blank');
                 tvdbButton.onclick = () => window.open(`https://www.thetvdb.com/${tvdbSlug}`, '_blank');
-                titleElement.parentNode.insertBefore(tvdbButton, titleElement.nextSibling);
-                titleElement.parentNode.insertBefore(imdbButton, titleElement.nextSibling);
+                if (tvdbSlug) titleElement.parentNode.insertBefore(tvdbButton, titleElement.nextSibling);
+                if (imdbId) titleElement.parentNode.insertBefore(imdbButton, titleElement.nextSibling);
                 applyTallButtons(window.getComputedStyle(titleElement).lineHeight);
             }
         }
@@ -326,8 +328,8 @@
                 const parent = titleElement.parentNode;
                 parent.insertBefore(wrapper, titleElement);
                 wrapper.appendChild(titleElement);
-                wrapper.appendChild(imdbButton);
-                wrapper.appendChild(tmdbButton);
+                if (imdbId) wrapper.appendChild(imdbButton);
+                if (tmdbId) wrapper.appendChild(tmdbButton);
             }
         }
 
