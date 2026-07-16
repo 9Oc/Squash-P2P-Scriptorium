@@ -35,12 +35,12 @@ DIALECT_WORD_MAP = {
                 "airplane","analyze","apologize","armor","behavior","catalog","canceled","center","color","colorful",
                 "counselor","defense","enroll","enrollment","favorite","favor","fiber","fulfill","fulfillment","gray",
                 "honor","humor","idolize","instill","jewelry","judgment","labor","license","liter","maneuver","maximize",
-                "memorize","meter","modeling","modeled","modeler","mold","organize","organization","parlor","practice","program",
+                "memorize","meter","modeling","modeled","modeler","mold","organize","organization","parlor","practice",
                 "realize","recognize","rumor","skeptic","specialty","theater","traveling","traveled","vigor","visualize",
-                "yogurt","curb","neighbor","paralyze","offense","pretense","ton","donut","plow","smolder","tire","likable",
+                "yogurt","curb","neighbor","paralyze","offense","pretense","donut","plow","smolder","tire","likable",
                 "labeled","willful","aluminum","aging","flavor","endeavor","sulfur","distill","anemia","feces","candor",
                 "rigor","vapor","counseling","authorize","capitalize","characterize","criticize","emphasize","generalize",
-                "equalize","minimize","mobilize","optimize","summarize","licorice","siphon","pants","cilantro","eggplant",
+                "equalize","minimize","mobilize","optimize","summarize","licorice","siphon","cilantro","eggplant",
                 "scallion","broil","plexiglass","dumpster","scepter","mustache","savior","savor","socialize","finalize",
                 "prioritize","familiarize","itemize","symbolize","privatize","catalyze","installment","stabilizing","cell phone",
                 "marvelous","categorize","colonize","globalize","hypothesize","hypothesized","inquire","install","legalize",
@@ -141,7 +141,7 @@ DIALECT_WORD_MAP = {
                 "institutionalizing","intellectualize","intellectualized","intellectualizes","intellectualizing","internalization",
                 "internalize","internalized","internalizes","internalizing","internationalization","internationalize","internationalized",
                 "internationalizes","internationalizing","ionization","ionized","ionizer","ionizers","ionizes","ionizing","italicize",
-                "italicized","italicizes","italicizing","itemized","itemizes","itemizing","jail","jailbird","jailbirds","jailbreak","jailbreaks",
+                "italicized","italicizes","italicizing","itemized","itemizes","itemizing","jailbird","jailbirds","jailbreak","jailbreaks",
                 "jailed","jailer","jailers","jailing","jails","jeopardize","jeopardized","jeopardizes","jeopardizing","jeweled","jewelers",
                 "kilogram","kilograms","kilometers","labeling","labored","laborer","laborers","laboring","labors","lackluster","legalization",
                 "legalized","legalizes","legalizing","legitimize","legitimized","legitimizes","legitimizing","leukemia","leveler","levelers",
@@ -179,7 +179,7 @@ DIALECT_WORD_MAP = {
                 "popularizing","pouf","poufs","practicing","presidium","presidiums","pressurization","pressurize","pressurized","pressurizes",
                 "pressurizing","pretenses","primeval","prioritization","prioritized","prioritizes","prioritizing","privatization",
                 "privatizations","privatized","privatizes","privatizing","professionalization","professionalize","professionalized",
-                "professionalizes","professionalizing","programs","prolog","prologs","propagandize","propagandized","propagandizes",
+                "professionalizes","professionalizing","prolog","prologs","propagandize","propagandized","propagandizes",
                 "propagandizing","proselytize","proselytized","proselytizer","proselytizers","proselytizes","proselytizing","psychoanalyze",
                 "psychoanalyzed","psychoanalyzes","psychoanalyzing","publicize","publicized","publicizes","publicizing","pulverization",
                 "pulverize","pulverized","pulverizes","pulverizing","pummel","pummeled","quarreled","radicalize","radicalized","radicalizes",
@@ -211,7 +211,7 @@ DIALECT_WORD_MAP = {
                 "synthesizes","synthesizing","systematization","systematize","systematized","systematizes","systematizing","tantalize",
                 "tantalized","tantalizes","tantalizing","tantalizingly","tasseled","technicolor","temporize","temporized","temporizes",
                 "temporizing","tenderize","tenderized","tenderizes","tenderizing","terrorize","terrorized","terrorizes","terrorizing",
-                "theatergoer","theatergoers","theaters","theorizing","tires","tons","toweled","toweling","toxemia","tranquility","tranquilize",
+                "theatergoer","theatergoers","theaters","theorizing","tires","toweled","toweling","toxemia","tranquility","tranquilize",
                 "tranquilized","tranquilizer","tranquilizers","tranquilizes","tranquilizing","transistorized","traumatize","traumatized",
                 "traumatizes","traumatizing","travelers","travelog","travelogs","trialed","trialing","tricolor","tricolors","trivialize",
                 "trivialized","trivializes","trivializing","tumors","tunneled","tunneling","tyrannize","tyrannized","tyrannizes","tyrannizing",
@@ -323,8 +323,8 @@ DIALECT_WORD_MAP = {
                 "foetid","foetus","foetuses","formalisation","formalise","formalised","formalises","formalising","fossilisation",
                 "fossilise","fossilised","fossilises","fossilising","fraternisation","fraternise","fraternised","fraternises",
                 "fraternising","fulfils","funnelled","funnelling","galvanise","galvanised","galvanises","galvanising","gambolled",
-                "gambolling","gaolbird","gaolbirds","gaolbreak","gaolbreaks","gaoled","gaoler","gaolers","gaoling","gaols","gases","gauge",
-                "gauged","gauges","gauging","generalisation","generalisations","generalised","generalises","generalising","ghettoise",
+                "gambolling","gaolbird","gaolbirds","gaolbreak","gaolbreaks","gaoled","gaoler","gaolers","gaoling","gaols","gases",
+                "generalisation","generalisations","generalised","generalises","generalising","ghettoise",
                 "ghettoised","ghettoises","ghettoising","gipsies","glamorise","glamorised","glamorises","glamorising","globalisation",
                 "globalised","globalises","globalising","glueing","goitre","goitres","gonorrhoea","grammes","gravelled","greying","greyish",
                 "greyness","greys","grovelled","groyne","groynes","gruelling","gruellingly","gryphon","gryphons","gynaecological",
@@ -664,7 +664,7 @@ DIALECT_WORD_MAP = {
                 "mesero","meseros","mesera","meseras","celular","elote","frijol","frijoles","troca","estacionamiento","parqueo","biyuyo",
                 "arete","aretes","elevador","básquet","básquetbol","bataclana","chamarra","costo","enojado","escuincle","contoy","tuanis",
                 "refrigerador","poroto","anteojos","jugo","subte","computador","computadora","pileta","video","chido","chambear",
-                "chévere","manejo","alberca","guagua","cuico","cheto","gomelo","che","boludo","güey","chamba","pibe","chambeo","chipi",
+                "chévere","alberca","guagua","cuico","cheto","gomelo","che","boludo","güey","chamba","pibe","chambeo","chipi",
                 "cuate","chamaco","pendejada","pendejadas","chamaca","chamaco","ándale","camote","guácala","locochón","épale","chambee",
                 "chambees","chambeés","chambeas","chambeás","chambeen","agüitarse","agüito","agüitaré","agüitas","agüitás","agüite","híjole",
                 "chivear","chiveo","chiveé","chiveado","chiveas","chiveás","chivea","chivearse","altoparlante","apapachar","apapacho",
@@ -724,7 +724,7 @@ DIALECT_WORD_MAP = {
                 "supercomputadoras","surestada","surestadas","talvez","tickeadora","tickeadoras","tilinguería","timonear","timoneé",
                 "timoneado","tipeo","tipeos","tomatodo","tomatodos","tragamonedas","tropero","troperos","veintiúnico","veintiúnicos",
                 "veintiúnica","veintiúnicas","vendutero","ventilete","ventiletes","videograbadora","vincha","vinchas","visionaje",
-                "visionajes","wawi","wawis","yérsey","yumbo","yumbos","yumba","yumbas","lentes","manejar","manejo",
+                "visionajes","wawi","wawis","yérsey","yumbo","yumbos","yumba","yumbas","lentes","manejar",
                 "manejé","manejado","abalear","abaleo","abaleé","abaleado","bebos","amansador","amansadores","amansadora","amansadoras",
                 "amiguero","amiguera","amigueros","amigueras","aplanadora","aplanadoras","asopado","automac","balacera","balaceras",
                 "basquetbolista","basquetbolistas","basquetbolístico","basquetbolística","basquetbolísticos","basquetbolísticas","boletería",
@@ -733,7 +733,8 @@ DIALECT_WORD_MAP = {
                 "buenmozas","cafiolo","cafiolos","cagantina","cagazo","cagazos","calilla","calillas","carrujo","carrujos","chancho",
                 "chanchos","chambonada","chambonadas","charrúa","charrúas","ciclovía","ciclovías","correntoso","correntosos","correntosa",
                 "correntosas","cortavenas","cursante","cursantes","empercudido","empercudidos","empercudida","empercudidas","farmaceuta",
-                "farmaceutas","aló",
+                "farmaceutas","aló","abarrotería","abarroterías","abogánster","pequeñín","afuerita","agandalle","ahorititita","alux",
+                "ámpula","ámpulas",
             },
             "phrase": {
                 "bate de beisbol","bates de beisbol","bien verga","bien cuidado","bien cuidados","bicicleta fija","bicicleta fijas",
@@ -748,7 +749,9 @@ DIALECT_WORD_MAP = {
                 "salir del clóset","qué pedo","qué ondas","chinga tu madre","chingar a su madre","qué tan grande","pena ajena",
                 "ser del otro cuadro","soy del otro cuadro","fui del otro cuadro","sido del otro cuadro","tasa de cambio","tasa impositiva",
                 "tender la cama","tiendo la cama","tendí la cama","tendido la cama","todo mundo","transmitir en vivo","transmito en vivo",
-                "transmití en vivo","transmitido en vivo","último momento","último minuto","a la final","a la verga",
+                "transmití en vivo","transmitido en vivo","último momento","último minuto","a la final","a la verga","a la chingada",
+                "a la mejor","a las quinientas","a patín","a poco","a toda madre","a vuelta de rueda","ahí nos vidrios","al ahí se va",
+                
             }
         },
         "es-ES": {
@@ -3856,9 +3859,8 @@ DIALECT_WORD_MAP = {
                 "vota","votava","votou","votara","votará","votaria","vote","votasse",
             }
         }
-    }
+    },
 }
-
 
 def get_subtitle_files(directory: str | Path, extension: str | None = None) -> list[Path]:
     """Get all subtitle files in the specified directory. If extension is None, get all .srt and .vtt"""
