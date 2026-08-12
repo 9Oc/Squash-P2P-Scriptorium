@@ -4,9 +4,9 @@ pip install rich av
 ffmpeg https://www.ffmpeg.org/download.html
 Ensure ffmpeg is in PATH.
 
-@version 2.3
+@version 3.0
 
-Video codecs supported: H.264, MPEG-2, VC-1
+Video codecs supported: H.264, HEVC, MPEG-2, VC-1
 """
 import argparse
 import re
@@ -21,6 +21,8 @@ import av
 from rich.console import Console
 
 console = Console(color_system="truecolor")
+
+# --- H.264 ---
 
 def find_idr_frames(video_file, target_frame, verbose: bool):
     """
@@ -124,6 +126,136 @@ def find_idr_frames(video_file, target_frame, verbose: bool):
     if verbose:
         console.print(f"All IDR frames found: [green]{sorted(idr_frames)}[/]")
 
+# --- HEVC ---
+
+# matches the 3-byte start code core. A 4-byte code (00 00 00 01) always
+# contains this as a substring starting one byte later, so we detect the
+# 4-byte form by checking the byte immediately before the match
+_START_CODE_RE = re.compile(rb"\x00\x00\x01")
+
+def get_nal_unit_type_hevc(nalu):
+    if len(nalu) < 2:
+        return None
+    return (nalu[0] >> 1) & 0x3F
+
+
+def is_first_slice_segment_hevc(nalu):
+    if len(nalu) < 3:
+        return False
+    return (nalu[2] & 0x80) != 0
+
+
+def iter_nalus_stream_hevc(file_obj, chunk_size=1024 * 1024):
+    """
+    Yield complete NAL units (without start codes) from an Annex-B
+    HEVC bytestream, reading the file incrementally in chunks
+    """
+    data = b""
+    search_from = 0      # don't re-scan bytes we've already searched
+    pending_start = None  # byte offset in data where the in-progress NALU begins
+
+    while True:
+        chunk = file_obj.read(chunk_size)
+        if chunk:
+            data += chunk
+
+        # consume every complete start code currently available in the buffer
+        while True:
+            m = _START_CODE_RE.search(data, search_from)
+            if not m:
+                break
+
+            code_start = m.start()
+            code_len = 3
+            if code_start >= 1 and data[code_start - 1] == 0:
+                # a 4-byte start code (00 00 00 01).
+                code_start -= 1
+                code_len = 4
+
+            if pending_start is not None:
+                yield data[pending_start:code_start]
+
+            pending_start = code_start + code_len
+            search_from = pending_start
+
+        if not chunk:
+            # flush whatever NALU was still being accumulated.
+            if pending_start is not None:
+                yield data[pending_start:]
+            break
+
+        # bound memory use, drop bytes we're done with (everything before
+        # the NALU currently being accumulated), keeping indices in sync
+        if pending_start:
+            data = data[pending_start:]
+            search_from -= pending_start
+            pending_start = 0
+
+
+def find_idr_frames_hevc(filename, target_frame, verbose: bool, target_types={19, 20}):
+    frame_num = -1
+    idr_frames = []
+    idr_before = None
+    idr_after = None
+    target_is_idr = False
+    
+    start_time = time.time()
+    status_ctx = console.status("Starting scan...", spinner="dots") if verbose else contextlib.nullcontext()
+    
+    with status_ctx as status, open(filename, "rb") as f:
+        for nalu in iter_nalus_stream_hevc(f):
+
+            nal_type = get_nal_unit_type_hevc(nalu)
+            if nal_type is None or nal_type > 31:
+                continue
+
+            if is_first_slice_segment_hevc(nalu):
+                frame_num += 1
+                if status is not None:
+                    status.update(
+                        f"Scanning frame {frame_num:,} "
+                        f"([cyan]{len(idr_frames)}[/cyan] IDR frame"
+                        f"{'s' if len(idr_frames) != 1 else ''} found so far)"
+                    )
+                if nal_type in target_types:
+                    idr_frames.append(frame_num)
+                    if frame_num == target_frame:
+                        # success, target frame as IDR
+                        target_is_idr = True
+                    elif frame_num < target_frame:
+                        idr_before = frame_num
+                    elif frame_num > target_frame:
+                        idr_after = frame_num
+                        break
+
+                if idr_after is not None:
+                    break
+    
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    console.print(f"\nExecution time: [blue]{elapsed_time:.3f}[/] seconds")
+    
+    if target_is_idr:
+        console.print(f"[green]Frame {target_frame} is an IDR frame[/]")
+    else:
+        console.print(f"[yellow]Frame {target_frame} is NOT an IDR frame[/]")
+
+    if idr_before is not None:
+        console.print(f"Nearest IDR frame before target: [green]{idr_before}[/]")
+    else:
+        console.print("No IDR frame found before the target frame")
+    
+    if idr_after is not None:
+        console.print(f"Nearest IDR frame after target: [green]{idr_after}[/]")
+    else:
+        console.print("No IDR frame found after the target frame")
+        
+    if verbose:
+        console.print(f"All IDR frames found: [green]{sorted(idr_frames)}[/]")
+
+    return idr_frames
+
+# --- MPEG-2 ---
 
 def find_safe_frames_mpeg2(video_file, target_frame, verbose: bool):
     """
@@ -266,6 +398,7 @@ def find_safe_frames_mpeg2(video_file, target_frame, verbose: bool):
     if verbose:
         console.print(f"All closed GOP I-frames: [green]{sorted(safe_cut_frames)}[/]")
 
+# --- VC-1 ---
 
 def find_safe_frames_vc1(video_file, target_frame, verbose: bool):
     """
@@ -424,13 +557,14 @@ def find_safe_frames_vc1(video_file, target_frame, verbose: bool):
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Check if a frame is an IDR frame in an H.264 stream, a closed GOP I-frame in an MPEG-2 stream, or a closed entry-point I-frame in a VC-1 stream.',
+        description='Check if a frame is an IDR frame in an H.264/HEVC stream, a closed GOP I-frame in an MPEG-2 stream, or a closed entry-point I-frame in a VC-1 stream.',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='''
             Usage:
             check_idr.py video.h264 --frame 1000
             check_idr.py video.m2v -f 1000 --verbose
             check_idr.py video.vc1 -f 1000 -v
+            check_idr.py video.hevc -f 1000
         '''
     )
     parser.add_argument('video_file', help='Path to the raw stream video file')
@@ -446,7 +580,7 @@ def main():
     stream_type = av_file.format.name
     stream = av_file.streams[0]
     profile = stream.codec_context.profile
-    if stream_type not in ("h264", "mpegvideo", "vc1"):
+    if stream_type not in ("h264", "mpegvideo", "vc1", "hevc"):
         console.print(f"[yellow]Video file must be a raw h264, mpeg, or vc1 stream.[/yellow]")
         console.print(f"[yellow]Detected file format:[/yellow] {stream_type}")
         return
@@ -464,10 +598,11 @@ def main():
         sys.exit(1)
     if stream_type == "h264":
         find_idr_frames(str(video_file), frame, verbose)
+    elif stream_type == "hevc":
+        find_idr_frames_hevc(str(video_file), frame, verbose)
     elif stream_type == "mpegvideo":
         find_safe_frames_mpeg2(str(video_file), frame, verbose)
     elif stream_type == "vc1":
-        
         if profile != "Advanced":
             console.print(f"{profile} [yellow]format profile VC-1 streams are not supported[/]")
             return
