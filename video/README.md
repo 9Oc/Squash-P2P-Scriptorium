@@ -2,7 +2,7 @@
 <h2><a href="https://github.com/9Oc/Squash-P2P-Script-Emporium/blob/main/video/check_idr.py">check_idr</a>
 <a href="https://www.python.org/downloads/release/python-380/"><img src="https://img.shields.io/badge/Python-3.08%2B-brightgreen" alt="Python 3.07+"></a></h2>
 
-`check_idr.py` will determine if a given frame in an h264, hevc, mpeg-2, or vc-1 raw stream is an IDR frame, closed GOP I-frame, or closed entry-point I-frame (respectively). IDR frames (h264/hevc bitstreams), closed GOP I-frames (mpeg-2 bitstreams), closed entry-point I-frames (vc-1 bitstreams) are guaranteed to be safe cut points and merge points when making hybrid video streams.  
+`check_idr.py` will determine if a given frame in an h264, hevc, mpeg-2, or vc-1 raw stream is an IDR frame, closed GOP I-frame, or CEP I-frame (respectively). IDR frames (h264/hevc bitstreams), closed GOP I-frames (mpeg-2 bitstreams), and CEP I-frames (vc-1 bitstreams) are guaranteed to be safe cut points and merge points when making hybrid video streams.  
 MPEG-2 bitstreams will have both the decoded and display order for frames output as MPEG-2 bitstreams do not display frames in the same order they are decoded. The output format is: (decode_frame_number, display_frame_number)  
 VC-1 bitstreams will have only the decoded order for frames output as parsing the displayed order requires complicated parsing of VC-1 header bytes
 
