@@ -18,7 +18,7 @@ A path to a raw h264/mpeg-2/vc-1 stream and a frame number are required argument
 
 `check_idr.py video.h264 --frame 1000`
 
-Adding the `--verbose` argument will output all IDR frames/closed GOP I-frames/closed entry-point I-frames found up to the given frame number.
+Adding the `--verbose` argument will output all IDR frames/closed GOP I-frames/CEP I-frames found up to the given frame number.
 <hr>
 
 Example output:
