@@ -6,7 +6,7 @@
 
 MPEG-2 bitstreams will have both the decoded and display order for frames output as MPEG-2 bitstreams do not display frames in the same order they are decoded. The output format is: (decode_frame_number, display_frame_number)  
 
-VC-1 bitstreams will have only the decoded order for frames output as parsing the displayed order requires complicated parsing of VC-1 header bytes which I have not spent the time to slog through the VC-1 specification to figure out. Note that only VC-1 Advanced Profile bistreams are supported as Simple and Main Profile bitstreams do not contain entry points and thus do not contain CEP I-frames making it impossible to determine any guaranteed safe cut frames.
+VC-1 bitstreams will have only the decoded order for frames output as parsing the displayed order requires complicated parsing of VC-1 header bytes which I have not spent the time to slog through the VC-1 specification to figure out. Note that only VC-1 Advanced Profile bitstreams are supported as Simple and Main Profile bitstreams do not contain entry points and instead any I-frame is automatically a random access point making it safe to cut Simple/Main profile bitstreams on any I-frame.
 
 Dependencies:
 
