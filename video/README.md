@@ -1,6 +1,6 @@
 # Video Scripts
 <h2><a href="https://github.com/9Oc/Squash-P2P-Script-Emporium/blob/main/video/check_idr.py">check_idr</a>
-<a href="https://www.python.org/downloads/release/python-380/"><img src="https://img.shields.io/badge/Python-3.08%2B-brightgreen" alt="Python 3.07+"></a></h2>
+<a href="https://www.python.org/downloads/release/python-310/"><img src="https://img.shields.io/badge/Python-3.10%2B-brightgreen" alt="Python 3.10+"></a></h2>
 
 `check_idr.py` will determine if a given frame in an h264, hevc, mpeg-2, or vc-1 raw stream is an IDR frame, closed GOP I-frame, or CEP I-frame (respectively). IDR frames (h264/hevc bitstreams), closed GOP I-frames (mpeg-2 bitstreams), and CEP I-frames (vc-1 bitstreams) are guaranteed to be safe cut points and merge points when making hybrid video streams.  
 
