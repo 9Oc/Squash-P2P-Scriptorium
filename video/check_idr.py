@@ -4,7 +4,7 @@ pip install rich av
 ffmpeg https://www.ffmpeg.org/download.html
 Ensure ffmpeg is in PATH.
 
-@version 3.0
+@version 3.1
 
 Video codecs supported: H.264, HEVC, MPEG-2, VC-1
 """
@@ -16,6 +16,7 @@ import time
 import contextlib
 
 from pathlib import Path
+from typing import Any
 
 import av
 from rich.console import Console
@@ -24,7 +25,7 @@ console = Console(color_system="truecolor")
 
 # --- H.264 ---
 
-def find_idr_frames(video_file, target_frame, verbose: bool):
+def find_idr_frames(video_file: str, target_frame: int, verbose: bool) -> dict[str, Any]:
     """
     Determines whether the target frame is and IDR frame. If not, find the nearest bi-directional IDR frames.
     video_file: Path to the H.264 video file.
@@ -43,7 +44,7 @@ def find_idr_frames(video_file, target_frame, verbose: bool):
         console.print(f"[red]Error running ffmpeg:[/] {e}")
         sys.exit(1)
     
-    status_ctx = console.status("Starting scan...", spinner="dots") if verbose else contextlib.nullcontext()
+    status_ctx = console.status("Starting scan...", spinner="dots")
     
     idr_frames = set()
     current_frame = -1
@@ -68,8 +69,12 @@ def find_idr_frames(video_file, target_frame, verbose: bool):
                     current_frame += 1
                     in_slice_header = False
                     
-                    if verbose and status is not None:
-                        status.update(f"Scanning frame {current_frame}")
+                    if status is not None:
+                        status.update(
+                            f"Scanning frame {current_frame:,} "
+                            f"([cyan]{len(idr_frames)}[/cyan] IDR frame"
+                            f"{'s' if len(idr_frames) != 1 else ''} found so far)"
+                        )
                     
                     # if we've found an IDR frame after the target, stop
                     if idr_after is not None:
@@ -89,18 +94,20 @@ def find_idr_frames(video_file, target_frame, verbose: bool):
                     if len(parts) >= 2:
                         nal_type = parts[-1].strip()
                         if nal_type == '5':
+                            idr_frames.add(current_frame)
+                            if target_frame is None:
+                                # scanning entire file; don't do target comparisons
+                                continue
+
                             if current_frame == target_frame:
                                 # success, target frame as IDR, stop
                                 target_is_idr = True
-                                idr_frames.add(current_frame)
                                 process.terminate()
                                 break
                             elif current_frame < target_frame:
                                 idr_before = current_frame
-                                idr_frames.add(current_frame)
                             elif current_frame > target_frame and idr_after is None:
                                 idr_after = current_frame
-                                idr_frames.add(current_frame)
     finally:
         process.wait()
     
@@ -108,23 +115,14 @@ def find_idr_frames(video_file, target_frame, verbose: bool):
     elapsed_time = end_time - start_time
     console.print(f"\nExecution time: [blue]{elapsed_time:.3f}[/] seconds")
     
-    if target_is_idr:
-        console.print(f"[green]Frame {target_frame} is an IDR frame[/]")
-    else:
-        console.print(f"[yellow]Frame {target_frame} is NOT an IDR frame[/]")
-
-    if idr_before is not None:
-        console.print(f"Nearest IDR frame before target: [green]{idr_before}[/]")
-    else:
-        console.print("No IDR frame found before the target frame")
-    
-    if idr_after is not None:
-        console.print(f"Nearest IDR frame after target: [green]{idr_after}[/]")
-    else:
-        console.print("No IDR frame found after the target frame")
-        
-    if verbose:
-        console.print(f"All IDR frames found: [green]{sorted(idr_frames)}[/]")
+    frame_data: dict = {
+        "safe_frames": idr_frames,
+        "safe_before": idr_before,
+        "safe_after": idr_after,
+        "target_is_safe": bool(target_is_idr),
+        "frame_type": "IDR ",
+    }
+    return frame_data
 
 # --- HEVC ---
 
@@ -192,7 +190,8 @@ def iter_nalus_stream_hevc(file_obj, chunk_size=1024 * 1024):
             pending_start = 0
 
 
-def find_idr_frames_hevc(filename, target_frame, verbose: bool, target_types={19, 20}):
+def find_idr_frames_hevc(filename: str, target_frame: int, verbose: bool) -> dict[str, Any]:
+    target_types = {19, 20}
     frame_num = -1
     idr_frames = []
     idr_before = None
@@ -200,7 +199,7 @@ def find_idr_frames_hevc(filename, target_frame, verbose: bool, target_types={19
     target_is_idr = False
     
     start_time = time.time()
-    status_ctx = console.status("Starting scan...", spinner="dots") if verbose else contextlib.nullcontext()
+    status_ctx = console.status("Starting scan...", spinner="dots")
     
     with status_ctx as status, open(filename, "rb") as f:
         for nalu in iter_nalus_stream_hevc(f):
@@ -219,6 +218,10 @@ def find_idr_frames_hevc(filename, target_frame, verbose: bool, target_types={19
                     )
                 if nal_type in target_types:
                     idr_frames.append(frame_num)
+                    if target_frame is None:
+                        # scanning entire file; don't do target comparisons
+                        continue
+
                     if frame_num == target_frame:
                         # success, target frame as IDR
                         target_is_idr = True
@@ -235,29 +238,18 @@ def find_idr_frames_hevc(filename, target_frame, verbose: bool, target_types={19
     elapsed_time = end_time - start_time
     console.print(f"\nExecution time: [blue]{elapsed_time:.3f}[/] seconds")
     
-    if target_is_idr:
-        console.print(f"[green]Frame {target_frame} is an IDR frame[/]")
-    else:
-        console.print(f"[yellow]Frame {target_frame} is NOT an IDR frame[/]")
-
-    if idr_before is not None:
-        console.print(f"Nearest IDR frame before target: [green]{idr_before}[/]")
-    else:
-        console.print("No IDR frame found before the target frame")
-    
-    if idr_after is not None:
-        console.print(f"Nearest IDR frame after target: [green]{idr_after}[/]")
-    else:
-        console.print("No IDR frame found after the target frame")
-        
-    if verbose:
-        console.print(f"All IDR frames found: [green]{sorted(idr_frames)}[/]")
-
-    return idr_frames
+    frame_data: dict = {
+        "safe_frames": idr_frames,
+        "safe_before": idr_before,
+        "safe_after": idr_after,
+        "target_is_safe": bool(target_is_idr),
+        "frame_type": "IDR ",
+    }
+    return frame_data
 
 # --- MPEG-2 ---
 
-def find_safe_frames_mpeg2(video_file, target_frame, verbose: bool):
+def find_safe_frames_mpeg2(video_file: str, target_frame: int, verbose: bool) -> dict[str, Any]:
     """
     Determines whether the target frame is a closed GOP I-frame.
     If not, find the nearest bi-directional closed GOP I-frames.
@@ -276,7 +268,7 @@ def find_safe_frames_mpeg2(video_file, target_frame, verbose: bool):
         console.print(f"[red]Error running ffmpeg:[/] {e}")
         sys.exit(1)
  
-    status_ctx = console.status("Starting scan...", spinner="dots") if verbose else contextlib.nullcontext()
+    status_ctx = console.status("Starting scan...", spinner="dots")
  
     safe_cut_frames = set()   # closed GOP I-frames
     all_i_frames = set()      # every I-frame regardless of GOP type
@@ -329,8 +321,12 @@ def find_safe_frames_mpeg2(video_file, target_frame, verbose: bool):
                     in_gop_header = False
                     current_temporal_ref = 0
  
-                    if verbose and status is not None:
-                        status.update(f"Scanning around display frame {gop_display_base}")
+                    if status is not None:
+                        status.update(
+                            f"Scanning around display frame {gop_display_base:,} "
+                            f"([cyan]{len(safe_cut_frames)}[/cyan] closed GOP I-frame"
+                            f"{'s' if len(safe_cut_frames) != 1 else ''} found so far)"
+                        )
  
                     if safe_after is not None:
                         process.terminate()
@@ -361,46 +357,38 @@ def find_safe_frames_mpeg2(video_file, target_frame, verbose: bool):
                             display_frame = gop_display_base + current_temporal_ref
                             all_i_frames.add((decode_frame, display_frame))
                             if pending_closed_gop:
+                                safe_cut_frames.add((decode_frame, display_frame))
+                                if target_frame is None:
+                                    # scanning entire file; don't do target comparisons
+                                    continue
+
                                 if display_frame == target_frame:
                                     target_is_safe = True
-                                    safe_cut_frames.add((decode_frame, display_frame))
                                     process.terminate()
                                     break
                                 elif display_frame < target_frame:
                                     safe_before = (decode_frame, display_frame)
-                                    safe_cut_frames.add((decode_frame, display_frame))
                                 elif display_frame > target_frame and safe_after is None:
                                     safe_after = (decode_frame, display_frame)
-                                    safe_cut_frames.add((decode_frame, display_frame))
     finally:
         process.wait()
  
     end_time = time.time()
     console.print(f"\nExecution time: [blue]{end_time - start_time:.3f}[/] seconds")
     console.print(f"\nMPEG-2 output frame format: (decoding_order, display_order)")
-    # report target frame status
-    if target_is_safe:
-        console.print(f"[green]Frame {target_frame} is a closed GOP I-frame[/]")
-    else:
-        console.print(f"[yellow]Frame {target_frame} is not a closed GOP I-frame[/]")
- 
-    # nearest safe cut points
-    if safe_before is not None:
-        console.print(f"Nearest closed GOP I-frame before target: [green]{safe_before}[/]")
-    else:
-        console.print("[yellow]No closed GOP I-frame found before the target frame[/]")
- 
-    if safe_after is not None:
-        console.print(f"Nearest closed GOP I-frame after target: [green]{safe_after}[/]")
-    else:
-        console.print("[yellow]No closed GOP I-frame found after the target frame[/]")
- 
-    if verbose:
-        console.print(f"All closed GOP I-frames: [green]{sorted(safe_cut_frames)}[/]")
+    
+    frame_data: dict = {
+        "safe_frames": safe_cut_frames,
+        "safe_before": safe_before,
+        "safe_after": safe_after,
+        "target_is_safe": bool(target_is_safe),
+        "frame_type": "closed GOP I-",
+    }
+    return frame_data
 
 # --- VC-1 ---
 
-def find_safe_frames_vc1(video_file, target_frame, verbose: bool):
+def find_safe_frames_vc1(video_file: str, target_frame: int, verbose: bool) -> dict[str, Any]:
     """
     Finds closed entry-point I-frames in a VC-1 Advanced Profile elementary stream by
     parsing the raw bitstream.
@@ -423,7 +411,7 @@ def find_safe_frames_vc1(video_file, target_frame, verbose: bool):
  
     NOTE: Frame numbers reported here are in decode order, which may differ
     from display order if the stream contains B-frames. Unlike MPEG-2, VC-1
-    does not carry a temporal_reference field that is easily extractable
+    does not carry a temporal_reference field that is easily parsed
     without fully parsing the complex AP frame header syntax.
     The parsing below was derived from the SMPTE Standard VC-1 proposal document
     found here https://multimedia.cx/mirror/s421m.pdf
@@ -434,8 +422,8 @@ def find_safe_frames_vc1(video_file, target_frame, verbose: bool):
     SC_FRAME       = 0x0D
     SC_ENTRYPOINT  = 0x0E
  
-    safe_cut_frames = set()   # closed entry-point I-frames
-    all_i_frames = set()      # every I-frame (i.e. every frame following any entry point)
+    safe_cut_frames = set()        # closed entry-point I-frames
+    all_i_frames = set()           # every I-frame (i.e. every frame following any entry point)
     current_frame = -1
     pending_closed_entry = False   # CLOSED_ENTRY from the most recent entry point header
     pending_any_entry = False      # any entry point seen (closed or open), for all_i_frames
@@ -444,7 +432,7 @@ def find_safe_frames_vc1(video_file, target_frame, verbose: bool):
     target_is_safe = False
     done = False
  
-    status_ctx = console.status("Starting scan...", spinner="dots") if verbose else contextlib.nullcontext()
+    status_ctx = console.status("Starting scan...", spinner="dots")
  
     # read in chunks with a 4-byte tail carried over between chunks so that
     # start codes surrounding a chunk boundary are never missed
@@ -489,25 +477,31 @@ def find_safe_frames_vc1(video_file, target_frame, verbose: bool):
                     elif scs == SC_FRAME:
                         current_frame += 1
  
-                        if verbose and status is not None:
-                            status.update(f"Scanning frame {current_frame}")
+                        if status is not None:
+                            status.update(
+                                f"Scanning frame {current_frame:,} "
+                                f"([cyan]{len(safe_cut_frames)}[/cyan] CEP I-frame"
+                                f"{'s' if len(safe_cut_frames) != 1 else ''} found so far)"
+                            )
  
                         # every frame that follows any entry point is an I-frame
                         if pending_any_entry:
                             all_i_frames.add(current_frame)
  
                         if pending_closed_entry:
+                            safe_cut_frames.add(current_frame)
+                            if target_frame is None:
+                                # scanning entire file; don't do target comparisons
+                                continue
+
                             if current_frame == target_frame:
                                 target_is_safe = True
-                                safe_cut_frames.add(current_frame)
                                 done = True
                                 break
                             elif current_frame < target_frame:
                                 safe_before = current_frame
-                                safe_cut_frames.add(current_frame)
                             elif current_frame > target_frame and safe_after is None:
                                 safe_after = current_frame
-                                safe_cut_frames.add(current_frame)
  
                         # consume the entry point flags regardless of type
                         pending_closed_entry = False
@@ -535,24 +529,15 @@ def find_safe_frames_vc1(video_file, target_frame, verbose: bool):
  
     end_time = time.time()
     console.print(f"\nExecution time: [blue]{end_time - start_time:.3f}[/] seconds")
- 
-    if target_is_safe:
-        console.print(f"[green]Frame {target_frame} is a CEP I-frame[/]")
-    else:
-        console.print(f"[yellow]Frame {target_frame} is not a CEP I-frame[/]")
- 
-    if safe_before is not None:
-        console.print(f"Nearest CEP I-frame before target: [green]{safe_before}[/]")
-    else:
-        console.print("[yellow]No CEP I-frames found before the target frame[/]")
- 
-    if safe_after is not None:
-        console.print(f"Nearest CEP I-frame after target: [green]{safe_after}[/]")
-    else:
-        console.print("[yellow]No CEP I-frames found after the target frame[/]")
- 
-    if verbose:
-        console.print(f"All CEP I-frames: [green]{sorted(safe_cut_frames)}[/]")
+    
+    frame_data: dict = {
+        "safe_frames": safe_cut_frames,
+        "safe_before": safe_before,
+        "safe_after": safe_after,
+        "target_is_safe": bool(target_is_safe),
+        "frame_type": "CEP I-",
+    }
+    return frame_data
 
 
 def main():
@@ -564,12 +549,12 @@ def main():
             check_idr.py video.h264 --frame 1000
             check_idr.py video.m2v -f 1000 --verbose
             check_idr.py video.vc1 -f 1000 -v
-            check_idr.py video.hevc -f 1000
+            check_idr.py video.hevc
         '''
     )
     parser.add_argument('video_file', help='Path to the raw stream video file')
-    parser.add_argument('-f', '--frame', type=int, required=True,
-                        help='Frame number to check')
+    parser.add_argument('-f', '--frame', type=int, default=None,
+                        help='Frame number to check (omit to scan the entire file)')
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='console.prints a list of all IDR/closed GOP/closed entry-point frames from 0 -> --frame')
     
@@ -581,34 +566,63 @@ def main():
     stream = av_file.streams[0]
     profile = stream.codec_context.profile
     if stream_type not in ("h264", "mpegvideo", "vc1", "hevc"):
-        console.print(f"[yellow]Video file must be a raw h264, mpeg, or vc1 stream.[/yellow]")
+        console.print(f"[yellow]Video file must be a raw h264, hevc, mpeg, or vc1 stream.[/yellow]")
         console.print(f"[yellow]Detected file format:[/yellow] {stream_type}")
         return
+
     console.print(f"[green]{video_file.name} detected as:[/] {stream_type} {profile}")
         
     try:
-        frame = int(args.frame)
+        frame = int(args.frame) if args.frame else None
     except ValueError as ve:
-        console.print(f"[red]Frame number must be an integer[/]\n{ve}")
+        console.print(f"[red]Frame number must be an integer[/]")
         sys.exit(1)
+
     verbose = args.verbose
-    
-    if frame < 0:
+
+    if frame and frame < 0:
         console.print("[red]Frame number must be non-negative[/]")
         sys.exit(1)
+
+    frame_data: dict = None
     if stream_type == "h264":
-        find_idr_frames(str(video_file), frame, verbose)
+        frame_data = find_idr_frames(str(video_file), frame, verbose)
     elif stream_type == "hevc":
-        find_idr_frames_hevc(str(video_file), frame, verbose)
+        frame_data = find_idr_frames_hevc(str(video_file), frame, verbose)
     elif stream_type == "mpegvideo":
-        find_safe_frames_mpeg2(str(video_file), frame, verbose)
+        frame_data = find_safe_frames_mpeg2(str(video_file), frame, verbose)
     elif stream_type == "vc1":
         if profile != "Advanced":
             console.print(f"{profile} [yellow]format profile VC-1 streams are not supported[/]")
             return
-        console.print("Note that frame numbers outputted for VC-1 streams are in [i]decoded[/i] order, " +
-                      "which may not match the [i]display[/i] order.")
-        find_safe_frames_vc1(str(video_file), frame, verbose)
+        console.print("[b]Note that frame numbers outputted for VC-1 streams are in [i]decoded[/i] order, " +
+                      "which may not match the [i]display[/i] order.[/b]")
+        frame_data = find_safe_frames_vc1(str(video_file), frame, verbose)
+    
+    frame_type = frame_data["frame_type"]
+    safe_frames = frame_data["safe_frames"]
+    safe_before = frame_data["safe_before"]
+    safe_after = frame_data["safe_after"]
+    if frame is not None:
+        if frame_data["target_is_safe"]:
+            console.print(f"[green]Frame {frame} is {frame_type.strip()}[/]")
+        else:
+            console.print(f"[yellow]Frame {frame} is NOT {frame_type.strip()}[/]")
+        
+        if safe_before is not None:
+            console.print(f"Nearest {frame_type}frame before target: [green]{safe_before}[/]")
+        else:
+            console.print(f"No {frame_type}frame found before the target frame")
+        
+        if safe_after is not None:
+            console.print(f"Nearest {frame_type}frame after target: [green]{safe_after}[/]")
+        else:
+            console.print(f"No {frame_type}frame found after the target frame")
+    else:
+        console.print(f"[green]Found {len(safe_frames)} {frame_type}frames[/]")
+
+    if verbose or frame is None:
+        console.print(f"All {frame_type}frames found: [green]{sorted(safe_frames)}[/]")
 
 if __name__ == "__main__":
     main()
