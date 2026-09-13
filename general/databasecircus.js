@@ -322,9 +322,9 @@
             if (titleElement) {
                 imdbButton.onclick = () => window.open(`https://www.imdb.com/title/${imdbId}/`, '_blank');
                 tvdbButton.onclick = () => window.open(`https://www.thetvdb.com/${tvdbSlug}`, '_blank');
+                if (contentType === "movie") titleElement.parentNode.insertBefore(letterboxdButton, titleElement.nextSibling);
                 if (tvdbSlug) titleElement.parentNode.insertBefore(tvdbButton, titleElement.nextSibling);
                 if (imdbId) titleElement.parentNode.insertBefore(imdbButton, titleElement.nextSibling);
-                if (contentType === "movie") titleElement.parentNode.insertBefore(letterboxdButton, titleElement.nextSibling);
                 const span = document.createElement("span");
                 span.textContent = ` [${tmdbId}]`;
                 span.style.fontSize = "22px";
