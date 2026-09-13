@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Movie/TV Database Circus
 // @namespace    http://tampermonkey.net/
-// @version      1.8
+// @version      1.9
 // @description  Add extenal ID buttons to tmdb.org, imdb.com, and thetvdb.com
 // @author       SiUwU squashski
 // @match        https://www.imdb.com/title/*
@@ -24,9 +24,11 @@
     const tmdbButton = document.createElement('button');
     const imdbButton = document.createElement('button');
     const tvdbButton = document.createElement('button');
+    const letterboxdButton = document.createElement('button');
     styleButton(tmdbButton, 'TMDB');
     styleButton(imdbButton, 'IMDB');
     styleButton(tvdbButton, 'TVDB');
+    styleButton(letterboxdButton, 'LETTERBOXD');
 
     let tvdbToken = null;
     let imdbId = null;
@@ -50,6 +52,7 @@
     function applyTallButtons(height) {
         imdbButton.style.height = height;
         tvdbButton.style.height = height;
+        letterboxdButton.style.height = height;
     }
 
     function fetch(method, url, body = null, headers = {}) {
@@ -283,14 +286,17 @@
         tmdbId = await getTMDbID();
         let contentType = null;
 
+        letterboxdButton.onclick = () => window.open(`https://letterboxd.com/tmdb/${tmdbId}/`, '_blank');
+
         // IMDb
         if (window.location.hostname === 'www.imdb.com') {
             if (imdbId) {
                 const titleElement = document.querySelector('h1[data-testid="hero__pageTitle"]') || document.querySelector('h1');
                 if (titleElement) {
-                    const episodeElement = document.querySelector('h3.ipc-title__text');
+                    const episodeElement = document.querySelector('h2.ipc-title__text');
                     if (episodeElement) {
                         contentType = episodeElement.textContent.toLowerCase().includes("episodes") ? "tv" : "movie";
+                        console.log(contentType)
                         tmdbButton.onclick = () => window.open(`https://www.themoviedb.org/${contentType}/${tmdbId}`, '_blank');
                         tvdbButton.onclick = () => window.open(`https://www.thetvdb.com/${tvdbSlug}`, '_blank');
 
@@ -303,6 +309,7 @@
                         wrapper.appendChild(titleElement);
                         if (tmdbId) wrapper.appendChild(tmdbButton);
                         if (tvdbSlug) wrapper.appendChild(tvdbButton);
+                        if (tmdbId && contentType === "movie") wrapper.appendChild(letterboxdButton);
                     }
                 }
             }
@@ -317,6 +324,7 @@
                 tvdbButton.onclick = () => window.open(`https://www.thetvdb.com/${tvdbSlug}`, '_blank');
                 if (tvdbSlug) titleElement.parentNode.insertBefore(tvdbButton, titleElement.nextSibling);
                 if (imdbId) titleElement.parentNode.insertBefore(imdbButton, titleElement.nextSibling);
+                if (contentType === "movie") titleElement.parentNode.insertBefore(letterboxdButton, titleElement.nextSibling);
                 const span = document.createElement("span");
                 span.textContent = ` [${tmdbId}]`;
                 span.style.fontSize = "22px";
@@ -344,6 +352,7 @@
                 wrapper.appendChild(titleElement);
                 if (imdbId) wrapper.appendChild(imdbButton);
                 if (tmdbId) wrapper.appendChild(tmdbButton);
+                if (tmdbId && contentType === "movie") wrapper.appendChild(letterboxdButton);
             }
         }
 
