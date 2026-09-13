@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Movie/TV Database Circus
 // @namespace    http://tampermonkey.net/
-// @version      1.7
+// @version      1.8
 // @description  Add extenal ID buttons to tmdb.org, imdb.com, and thetvdb.com
 // @author       SiUwU squashski
 // @match        https://www.imdb.com/title/*
@@ -174,10 +174,18 @@
             const url = `https://api.themoviedb.org/3/find/${imdbId}?api_key=${TMDB_API_KEY}&external_source=imdb_id`;
             const data = await fetch('GET', url, null);
             if ("error" in data) throw new Error(data.error);
+            const episodeElement = document.querySelector('h3.ipc-title__text');
+            if ((episodeElement && episodeElement.textContent.toLowerCase().includes("episodes")) || hostname == 'www.thetvdb.com') {
+                try {
+                    return data.tv_results[0].id;
+                } catch (error) { return data.tv_episode_results[0].show_id; }
+            }
             try {
                 return data.movie_results[0].id;
             } catch (error) {
-                return data.tv_results[0].id;
+                try {
+                    return data.tv_results[0].id;
+                 } catch (error) { return data.tv_episode_results[0].show_id; }
             }
         }
         return null;
@@ -309,6 +317,12 @@
                 tvdbButton.onclick = () => window.open(`https://www.thetvdb.com/${tvdbSlug}`, '_blank');
                 if (tvdbSlug) titleElement.parentNode.insertBefore(tvdbButton, titleElement.nextSibling);
                 if (imdbId) titleElement.parentNode.insertBefore(imdbButton, titleElement.nextSibling);
+                const span = document.createElement("span");
+                span.textContent = ` [${tmdbId}]`;
+                span.style.fontSize = "22px";
+                span.style.paddingLeft = "8px";
+                span.style.paddingRight = "8px";
+                if (tmdbId) titleElement.parentNode.insertBefore(span, titleElement.nextSibling);
                 applyTallButtons(window.getComputedStyle(titleElement).lineHeight);
             }
         }
