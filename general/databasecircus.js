@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Movie/TV Database Circus
 // @namespace    http://tampermonkey.net/
-// @version      1.9
+// @version      1.91
 // @description  Add extenal ID buttons to tmdb.org, imdb.com, and thetvdb.com
 // @author       SiUwU squashski
 // @match        https://www.imdb.com/title/*
@@ -177,18 +177,37 @@
             const url = `https://api.themoviedb.org/3/find/${imdbId}?api_key=${TMDB_API_KEY}&external_source=imdb_id`;
             const data = await fetch('GET', url, null);
             if ("error" in data) throw new Error(data.error);
-            const episodeElement = document.querySelector('h3.ipc-title__text');
-            if ((episodeElement && episodeElement.textContent.toLowerCase().includes("episodes")) || hostname == 'www.thetvdb.com') {
+            if (hostname === "www.imdb.com") {
+                let contentType = null;
+                const script = document.querySelector('script[type="application/ld+json"]');
                 try {
-                    return data.tv_results[0].id;
-                } catch (error) { return data.tv_episode_results[0].show_id; }
-            }
-            try {
-                return data.movie_results[0].id;
-            } catch (error) {
-                try {
-                    return data.tv_results[0].id;
-                 } catch (error) { return data.tv_episode_results[0].show_id; }
+                    const data = JSON.parse(script.textContent);
+                    contentType = data['@type']
+                } catch (e) {
+                    // Ignore invalid JSON-LD
+                }
+
+                switch (contentType) {
+                    case "Movie":
+                        return data.movie_results[0].id ?? null;
+                    case "TVSeries":
+                        return data.tv_results[0].id ?? null;
+                    case "TVEpisode":
+                        return data.tv_episode_results[0].show_id ?? null;
+                    default:
+                        return null;
+                }
+            } else if (hostname === 'www.thetvdb.com') {
+                const tvdbUrl = window.location.href;
+                let contentType = tvdbUrl.includes("/movies/") ? "Movie" : "TVSeries";
+                switch (contentType) {
+                    case "Movie":
+                        return data.movie_results[0].id ?? null;
+                    case "TVSeries":
+                        return data.tv_results[0].id ?? null;
+                    default:
+                        return null;
+                }
             }
         }
         return null;
@@ -293,24 +312,28 @@
             if (imdbId) {
                 const titleElement = document.querySelector('h1[data-testid="hero__pageTitle"]') || document.querySelector('h1');
                 if (titleElement) {
-                    const episodeElement = document.querySelector('h2.ipc-title__text');
-                    if (episodeElement) {
-                        contentType = episodeElement.textContent.toLowerCase().includes("episodes") ? "tv" : "movie";
-                        console.log(contentType)
-                        tmdbButton.onclick = () => window.open(`https://www.themoviedb.org/${contentType}/${tmdbId}`, '_blank');
-                        tvdbButton.onclick = () => window.open(`https://www.thetvdb.com/${tvdbSlug}`, '_blank');
-
-                        const wrapper = document.createElement('div');
-                        wrapper.style.display = 'flex';
-                        wrapper.style.alignItems = 'center';
-
-                        const parent = titleElement.parentNode;
-                        parent.insertBefore(wrapper, titleElement);
-                        wrapper.appendChild(titleElement);
-                        if (tmdbId) wrapper.appendChild(tmdbButton);
-                        if (tvdbSlug) wrapper.appendChild(tvdbButton);
-                        if (tmdbId && contentType === "movie") wrapper.appendChild(letterboxdButton);
+                    let contentType = null;
+                    const script = document.querySelector('script[type="application/ld+json"]');
+                    try {
+                        const data = JSON.parse(script.textContent);
+                        contentType = data['@type']
+                    } catch (e) {
+                        // Ignore invalid JSON-LD
                     }
+                    contentType = contentType === "Movie" ? "movie" : "tv";
+                    tmdbButton.onclick = () => window.open(`https://www.themoviedb.org/${contentType}/${tmdbId}`, '_blank');
+                    tvdbButton.onclick = () => window.open(`https://www.thetvdb.com/${tvdbSlug}`, '_blank');
+
+                    const wrapper = document.createElement('div');
+                    wrapper.style.display = 'flex';
+                    wrapper.style.alignItems = 'center';
+
+                    const parent = titleElement.parentNode;
+                    parent.insertBefore(wrapper, titleElement);
+                    wrapper.appendChild(titleElement);
+                    if (tmdbId) wrapper.appendChild(tmdbButton);
+                    if (tvdbSlug) wrapper.appendChild(tvdbButton);
+                    if (tmdbId && contentType === "movie") wrapper.appendChild(letterboxdButton);
                 }
             }
         }
