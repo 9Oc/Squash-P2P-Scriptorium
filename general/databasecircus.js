@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Movie/TV Database Circus
 // @namespace    http://tampermonkey.net/
-// @version      1.91
+// @version      1.93
 // @description  Add extenal ID buttons to tmdb.org, imdb.com, and thetvdb.com
 // @author       SiUwU squashski
 // @match        https://www.imdb.com/title/*
@@ -21,6 +21,18 @@
     const TVDB_API_KEY = ''; // Your TVDB API key
     const TVDB_PIN = ''; // Your TVDB pin if you set one, otherwise leave blank
 
+    // Logo sources for each button. Primary: Simple Icons (https://simpleicons.org),
+    // a free CDN of brand-colored SVG logos. Fallback: that site's own favicon via
+    // Google's favicon service, which works for essentially any domain (used in case
+    // a brand isn't in the Simple Icons catalog, e.g. thetvdb.com).
+    const LOGO_CONFIG = {
+        TMDB: { slug: 'themoviedatabase', domain: 'themoviedb.org' },
+        IMDB: { slug: 'imdb', domain: 'imdb.com' },
+        TVDB: { slug: 'thetvdb', domain: 'thetvdb.com' },
+        LETTERBOXD: { slug: 'letterboxd', domain: 'letterboxd.com' },
+    };
+    const LOGO_HEIGHT = '44px'; // default logo height when no explicit button height is set
+
     const tmdbButton = document.createElement('button');
     const imdbButton = document.createElement('button');
     const tvdbButton = document.createElement('button');
@@ -36,20 +48,63 @@
     let tmdbId = null;
 
     function styleButton(button, text) {
-        button.innerText = text;
+        // The button itself is now just an invisible, clickable frame around the
+        // logo image -- no background, border, padding, or text color like before.
         button.id = text;
+        button.title = text; // accessible / hover name, since there's no visible text label
+        button.setAttribute('aria-label', text);
         button.style.marginLeft = '10px';
-        button.style.padding = '5px 10px';
-        button.style.backgroundColor = '#16707f';
-        button.style.color = '#ffffff';
+        button.style.padding = '0';
+        button.style.background = 'transparent';
         button.style.border = 'none';
-        button.style.borderRadius = '5px';
         button.style.cursor = 'pointer';
-        button.style.fontSize = '16px';
         button.style.verticalAlign = 'middle';
+        // Flex-center the logo (or fallback text) within the button's box, and let
+        // the image fill whatever height the button ends up with (see applyTallButtons).
+        button.style.display = 'inline-flex';
+        button.style.alignItems = 'center';
+        button.style.justifyContent = 'center';
+        button.style.lineHeight = '0';
+        button.style.height = LOGO_HEIGHT; // overridden by applyTallButtons() where used
+
+        const config = LOGO_CONFIG[text];
+        const img = document.createElement('img');
+        img.alt = text;
+        img.style.height = '100%'; // tracks the button's height, so applyTallButtons still works
+        img.style.width = 'auto';
+        img.style.maxWidth = 'none';
+        img.style.display = 'block';
+        img.style.pointerEvents = 'none'; // clicks still go to the button, not the image
+        if (button == letterboxdButton || button == imdbButton) {
+            img.src = `https://www.google.com/s2/favicons?sz=64&domain=${config.domain}`;
+        } else {
+            img.src = `https://cdn.simpleicons.org/${config.slug}`;
+        }
+
+        let triedFavicon = false;
+        img.onerror = () => {
+            if (!triedFavicon) {
+                // Brand not in the Simple Icons catalog (or CDN hiccup) -- fall back
+                // to that site's own favicon, which works for any domain.
+                triedFavicon = true;
+                img.src = `https://www.google.com/s2/favicons?sz=64&domain=${config.domain}`;
+                return;
+            }
+            // Both sources failed (e.g. offline) -- fall back to a plain text label
+            // so the button is still usable instead of blank.
+            img.remove();
+            button.innerText = text;
+            button.style.padding = '5px 10px';
+            button.style.backgroundColor = '#16707f';
+            button.style.color = '#ffffff';
+            button.style.borderRadius = '5px';
+            button.style.fontSize = '16px';
+        };
+        button.appendChild(img);
     }
 
-    function applyTallButtons(height) {
+    function applyButtonHeight(height) {
+        tmdbButton.style.height = height;
         imdbButton.style.height = height;
         tvdbButton.style.height = height;
         letterboxdButton.style.height = height;
@@ -312,7 +367,6 @@
             if (imdbId) {
                 const titleElement = document.querySelector('h1[data-testid="hero__pageTitle"]') || document.querySelector('h1');
                 if (titleElement) {
-                    let contentType = null;
                     const script = document.querySelector('script[type="application/ld+json"]');
                     try {
                         const data = JSON.parse(script.textContent);
@@ -334,6 +388,7 @@
                     if (tmdbId) wrapper.appendChild(tmdbButton);
                     if (tvdbSlug) wrapper.appendChild(tvdbButton);
                     if (tmdbId && contentType === "movie") wrapper.appendChild(letterboxdButton);
+                    applyButtonHeight(window.getComputedStyle(titleElement).lineHeight)
                 }
             }
         }
@@ -354,7 +409,7 @@
                 span.style.paddingLeft = "8px";
                 span.style.paddingRight = "8px";
                 if (tmdbId) titleElement.parentNode.insertBefore(span, titleElement.nextSibling);
-                applyTallButtons(window.getComputedStyle(titleElement).lineHeight);
+                applyButtonHeight(window.getComputedStyle(titleElement).lineHeight);
             }
         }
 
@@ -376,6 +431,7 @@
                 if (imdbId) wrapper.appendChild(imdbButton);
                 if (tmdbId) wrapper.appendChild(tmdbButton);
                 if (tmdbId && contentType === "movie") wrapper.appendChild(letterboxdButton);
+                applyButtonHeight(window.getComputedStyle(titleElement).lineHeight);
             }
         }
 
