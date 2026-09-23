@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Movie/TV Database Circus
 // @namespace    http://tampermonkey.net/
-// @version      1.93
+// @version      1.94
 // @description  Add extenal ID buttons to tmdb.org, imdb.com, and thetvdb.com
 // @author       SiUwU squashski
 // @match        https://www.imdb.com/title/*
@@ -12,6 +12,7 @@
 // @grant        GM_xmlhttpRequest
 // @connect      api.themoviedb.org
 // @connect      api4.thetvdb.com
+// @connect      lostimg.cc
 // ==/UserScript==
 
 (function () {
@@ -26,10 +27,11 @@
     // Google's favicon service, which works for essentially any domain (used in case
     // a brand isn't in the Simple Icons catalog, e.g. thetvdb.com).
     const LOGO_CONFIG = {
-        TMDB: { slug: 'themoviedatabase', domain: 'themoviedb.org' },
-        IMDB: { slug: 'imdb', domain: 'imdb.com' },
-        TVDB: { slug: 'thetvdb', domain: 'thetvdb.com' },
-        LETTERBOXD: { slug: 'letterboxd', domain: 'letterboxd.com' },
+        TMDB: { slug: 'themoviedatabase', domain: 'themoviedb.org', source: null },
+        IMDB: { slug: 'imdb', domain: 'imdb.com', source: null },
+        TVDB: { slug: 'thetvdb', domain: 'thetvdb.com', source: null },
+        LETTERBOXD: { slug: 'letterboxd', domain: 'letterboxd.com', source: null },
+        BLURAY: {slug: 'bluray', domain: 'us.blu-raydisc.com', source: 'https://lostimg.cc/43aeTexT.png' },
     };
     const LOGO_HEIGHT = '44px'; // default logo height when no explicit button height is set
 
@@ -37,10 +39,12 @@
     const imdbButton = document.createElement('button');
     const tvdbButton = document.createElement('button');
     const letterboxdButton = document.createElement('button');
+    const blurayButton = document.createElement('button');
     styleButton(tmdbButton, 'TMDB');
     styleButton(imdbButton, 'IMDB');
     styleButton(tvdbButton, 'TVDB');
     styleButton(letterboxdButton, 'LETTERBOXD');
+    styleButton(blurayButton, 'BLURAY');
 
     let tvdbToken = null;
     let imdbId = null;
@@ -60,22 +64,24 @@
         button.style.cursor = 'pointer';
         button.style.verticalAlign = 'middle';
         // Flex-center the logo (or fallback text) within the button's box, and let
-        // the image fill whatever height the button ends up with (see applyTallButtons).
+        // the image fill whatever height the button ends up with (see applyButtonHeight).
         button.style.display = 'inline-flex';
         button.style.alignItems = 'center';
         button.style.justifyContent = 'center';
         button.style.lineHeight = '0';
-        button.style.height = LOGO_HEIGHT; // overridden by applyTallButtons() where used
+        button.style.height = LOGO_HEIGHT; // overridden by applyButtonHeight() where used
 
         const config = LOGO_CONFIG[text];
         const img = document.createElement('img');
         img.alt = text;
-        img.style.height = '100%'; // tracks the button's height, so applyTallButtons still works
+        img.style.height = '100%'; // tracks the button's height, so applyTalapplyButtonHeightlButtons still works
         img.style.width = 'auto';
         img.style.maxWidth = 'none';
         img.style.display = 'block';
         img.style.pointerEvents = 'none'; // clicks still go to the button, not the image
-        if (button == letterboxdButton || button == imdbButton) {
+        if (config.source != null) {
+            img.src = config.source;
+        } else if (button == letterboxdButton || button == imdbButton) {
             img.src = `https://www.google.com/s2/favicons?sz=64&domain=${config.domain}`;
         } else {
             img.src = `https://cdn.simpleicons.org/${config.slug}`;
@@ -108,6 +114,7 @@
         imdbButton.style.height = height;
         tvdbButton.style.height = height;
         letterboxdButton.style.height = height;
+        blurayButton.style.height = height;
     }
 
     function fetch(method, url, body = null, headers = {}) {
@@ -361,6 +368,7 @@
         let contentType = null;
 
         letterboxdButton.onclick = () => window.open(`https://letterboxd.com/tmdb/${tmdbId}/`, '_blank');
+        blurayButton.onclick = () => window.open(`https://www.blu-ray.com/search/?quicksearch=1&quicksearch_keyword=${imdbId}&section=theatrical`, `_blank`);
 
         // IMDb
         if (window.location.hostname === 'www.imdb.com') {
@@ -381,14 +389,29 @@
                     const wrapper = document.createElement('div');
                     wrapper.style.display = 'flex';
                     wrapper.style.alignItems = 'center';
+                    wrapper.style.flexWrap = 'wrap';
+
+                    const buttonGroup = document.createElement('div');
+                    buttonGroup.style.display = 'flex';
+                    buttonGroup.style.alignItems = 'center';
+                    buttonGroup.style.flexShrink = '0'; // never let the group itself get squished/split
+                    if (tmdbId) buttonGroup.appendChild(tmdbButton);
+                    if (tvdbSlug) buttonGroup.appendChild(tvdbButton);
+                    if (tmdbId && contentType === "movie") buttonGroup.appendChild(letterboxdButton);
+                    if (imdbId) buttonGroup.appendChild(blurayButton);
 
                     const parent = titleElement.parentNode;
                     parent.insertBefore(wrapper, titleElement);
                     wrapper.appendChild(titleElement);
-                    if (tmdbId) wrapper.appendChild(tmdbButton);
-                    if (tvdbSlug) wrapper.appendChild(tvdbButton);
-                    if (tmdbId && contentType === "movie") wrapper.appendChild(letterboxdButton);
-                    applyButtonHeight(window.getComputedStyle(titleElement).lineHeight)
+                    wrapper.appendChild(buttonGroup);
+//                     const parent = titleElement.parentNode;
+//                     parent.insertBefore(wrapper, titleElement);
+//                     wrapper.appendChild(titleElement);
+//                     if (tmdbId) wrapper.appendChild(tmdbButton);
+//                     if (tvdbSlug) wrapper.appendChild(tvdbButton);
+//                     if (tmdbId && contentType === "movie") wrapper.appendChild(letterboxdButton);
+//                     if (imdbId) wrapper.appendChild(blurayButton);
+                    applyButtonHeight(window.getComputedStyle(titleElement).lineHeight - 10)
                 }
             }
         }
@@ -400,6 +423,7 @@
             if (titleElement) {
                 imdbButton.onclick = () => window.open(`https://www.imdb.com/title/${imdbId}/`, '_blank');
                 tvdbButton.onclick = () => window.open(`https://www.thetvdb.com/${tvdbSlug}`, '_blank');
+                if (imdbId) titleElement.parentNode.insertBefore(blurayButton, titleElement.nextSibling);
                 if (contentType === "movie") titleElement.parentNode.insertBefore(letterboxdButton, titleElement.nextSibling);
                 if (tvdbSlug) titleElement.parentNode.insertBefore(tvdbButton, titleElement.nextSibling);
                 if (imdbId) titleElement.parentNode.insertBefore(imdbButton, titleElement.nextSibling);
@@ -431,6 +455,7 @@
                 if (imdbId) wrapper.appendChild(imdbButton);
                 if (tmdbId) wrapper.appendChild(tmdbButton);
                 if (tmdbId && contentType === "movie") wrapper.appendChild(letterboxdButton);
+                if (imdbId) wrapper.appendChild(blurayButton);
                 applyButtonHeight(window.getComputedStyle(titleElement).lineHeight);
             }
         }
