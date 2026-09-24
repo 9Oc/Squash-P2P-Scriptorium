@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Movie/TV Database Circus
 // @namespace    http://tampermonkey.net/
-// @version      1.94
+// @version      1.95
 // @description  Add extenal ID buttons to tmdb.org, imdb.com, and thetvdb.com
 // @author       SiUwU squashski
 // @match        https://www.imdb.com/title/*
@@ -52,8 +52,8 @@
     let tmdbId = null;
 
     function styleButton(button, text) {
-        // The button itself is now just an invisible, clickable frame around the
-        // logo image -- no background, border, padding, or text color like before.
+        // the button itself is an invisible, clickable frame around the
+        // logo image, no background, border, padding, or text color
         button.id = text;
         button.title = text; // accessible / hover name, since there's no visible text label
         button.setAttribute('aria-label', text);
@@ -63,7 +63,7 @@
         button.style.border = 'none';
         button.style.cursor = 'pointer';
         button.style.verticalAlign = 'middle';
-        // Flex-center the logo (or fallback text) within the button's box, and let
+        // flex-center the logo (or fallback text) within the button's box, and let
         // the image fill whatever height the button ends up with (see applyButtonHeight).
         button.style.display = 'inline-flex';
         button.style.alignItems = 'center';
@@ -74,7 +74,7 @@
         const config = LOGO_CONFIG[text];
         const img = document.createElement('img');
         img.alt = text;
-        img.style.height = '100%'; // tracks the button's height, so applyTalapplyButtonHeightlButtons still works
+        img.style.height = '100%'; // tracks the button's height, so applyButtonHeight() still works
         img.style.width = 'auto';
         img.style.maxWidth = 'none';
         img.style.display = 'block';
@@ -90,14 +90,14 @@
         let triedFavicon = false;
         img.onerror = () => {
             if (!triedFavicon) {
-                // Brand not in the Simple Icons catalog (or CDN hiccup) -- fall back
-                // to that site's own favicon, which works for any domain.
+                // brand not in the Simple Icons catalog (or CDN failure), fall back
+                // to that site's own favicon, which works for any domain
                 triedFavicon = true;
                 img.src = `https://www.google.com/s2/favicons?sz=64&domain=${config.domain}`;
                 return;
             }
-            // Both sources failed (e.g. offline) -- fall back to a plain text label
-            // so the button is still usable instead of blank.
+            // both sources failed (e.g. offline), fall back to a plain text label
+            // so the button is still usable instead of blank
             img.remove();
             button.innerText = text;
             button.style.padding = '5px 10px';
@@ -149,6 +149,31 @@
                 ontimeout: (err) => reject(err),
             });
         });
+    }
+
+    function getTypeIMDb() {
+        let contentType = null;
+        const script = document.querySelector('script[type="application/ld+json"]');
+        if (script) {
+            try {
+                const data = JSON.parse(script.textContent);
+                contentType = data['@type'];
+            } catch (e) { /*Ignore invalid JSON-LD*/ }
+        } else {
+            const ogType = document.querySelector('meta[property="og:type"]')?.content;
+            switch (ogType) {
+                case "video.movie":
+                    contentType = "Movie";
+                    break;
+                case "video.tv_show":
+                    contentType = "TVSeries";
+                    break;
+                case "video.episode":
+                    contentType = "TVEpisode";
+                    break;
+            }
+        }
+        return contentType;
     }
 
     async function getTVDBToken(apikey, pin = '') {
@@ -240,14 +265,7 @@
             const data = await fetch('GET', url, null);
             if ("error" in data) throw new Error(data.error);
             if (hostname === "www.imdb.com") {
-                let contentType = null;
-                const script = document.querySelector('script[type="application/ld+json"]');
-                try {
-                    const data = JSON.parse(script.textContent);
-                    contentType = data['@type']
-                } catch (e) {
-                    // Ignore invalid JSON-LD
-                }
+                let contentType = getTypeIMDb();
 
                 switch (contentType) {
                     case "Movie":
@@ -282,68 +300,102 @@
         const btn = document.createElement('button');
         btn.innerText = 'Hide Providers';
         btn.style.cssText = `
-            position: fixed;
-            top: calc(50vh - 300px - 30px);
-            right: 20px;
-            padding: 4px 10px;
-            font-size: 13px;
-            background: #16707f;
-            color: #fff;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            z-index: 1001;`;
+        position: fixed !important;
+        top: calc(50vh - 300px - 30px) !important;
+        right: 20px !important;
+        padding: 4px 10px !important;
+        font-size: 13px !important;
+        background: #444444 !important;
+        color: #f0ede8 !important;
+        border: none !important;
+        border-radius: 5px !important;
+        cursor: pointer !important;
+        z-index: 100001 !important;`;
 
         const panel = document.createElement('div');
         panel.style.cssText = `
-            position: fixed;
-            top: calc(50vh - 300px);
-            right: 20px;
-            width: 400px;
-            max-height: 600px;
-            overflow-y: auto;
-            border: 1px solid #ddd;
-            background: #f9f9f9;
-            z-index: 1000;`;
+        position: fixed !important;
+        top: calc(50vh - 300px) !important;
+        right: 20px !important;
+        width: 400px !important;
+        max-height: 600px !important;
+        overflow-y: auto !important;
+        border: 1px solid #555555 !important;
+        border-radius: 6px !important;
+        background: #2b2b2b !important;
+        color: #f0ede8 !important;
+        font-family: Helvetica, sans-serif !important;
+        z-index: 100000 !important;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.6) !important;`;
 
         const table = document.createElement('table');
-        table.style.cssText = `width: 100%; border-collapse: collapse; font-family: Helvetica, sans-serif;`;
+        table.style.cssText = `
+        width: 100% !important;
+        border-collapse: collapse !important;
+        background: #2b2b2b !important;
+        color: #f0ede8 !important;`;
 
         const header = table.insertRow();
-        header.style.background = '#f2f2f2';
-        header.style.fontWeight = 'bold';
-        header.style.color = '#000000';
-
-        const ccHeader = header.insertCell()
+        const ccHeader = header.insertCell();
         ccHeader.innerText = 'CC';
-        ccHeader.style.padding = '6px';
+        ccHeader.style.cssText = 'padding: 6px !important; background: #3a3a3a !important; color: #f0ede8 !important; font-weight: bold !important; border: 1px solid #555555 !important;';
         const cHeader = header.insertCell();
         cHeader.innerText = 'Country';
-        cHeader.style.padding = '6px';
+        cHeader.style.cssText = 'padding: 6px !important; background: #3a3a3a !important; color: #f0ede8 !important; font-weight: bold !important; border: 1px solid #555555 !important;';
         const pHeader = header.insertCell();
         pHeader.innerText = 'Providers';
-        pHeader.style.padding = '6px';
+        pHeader.style.cssText = 'padding: 6px !important; background: #3a3a3a !important; color: #f0ede8 !important; font-weight: bold !important; border: 1px solid #555555 !important;';
 
         const countryNames = new Intl.DisplayNames(['en'], { type: 'region' });
 
         for (const [code, info] of Object.entries(data.results)) {
             const row = table.insertRow();
-            row.style.border = '1px solid #ddd';
+            row.style.cssText = 'border: 1px solid #555555 !important; background: #2b2b2b !important; color: #f0ede8 !important;';
+
             const c1 = row.insertCell();
             const c2 = row.insertCell();
             const c3 = row.insertCell();
             c1.innerText = code;
             c2.innerText = countryNames.of(code) || 'Unknown';
 
-            let list = [];
-            if (info.flatrate) list.push(...info.flatrate.map(p => `${p.provider_name} (Flatrate)`));
-            if (info.ads) list.push(...info.ads.map(p => `${p.provider_name} (Ads)`));
-            if (info.rent) list.push(...info.rent.map(p => `${p.provider_name} (Rent)`));
-            if (info.buy) list.push(...info.buy.map(p => `${p.provider_name} (Buy)`));
-            c3.innerText = list.length ? list.join(', ') : 'N/A';
+            // merge rent + buy, dedupe by provider_id (keeping first occurrence)
+            const rentBuyMap = new Map();
+            for (const p of [...(info.rent || []), ...(info.buy || [])]) {
+                if (!rentBuyMap.has(p.provider_id)) {
+                    rentBuyMap.set(p.provider_id, p);
+                }
+            }
+            const rentBuy = [...rentBuyMap.values()];
+
+            // merge free + ads, dedupe by provider_id (keeping first occurrence)
+            const freeAdsMap = new Map();
+            for (const p of [...(info.free || []), ...(info.ads || [])]) {
+                if (!freeAdsMap.has(p.provider_id)) {
+                    freeAdsMap.set(p.provider_id, p);
+                }
+            }
+            const freeAds = [...freeAdsMap.values()];
+
+            const categories = [
+                ...(freeAds.length ? [['Free/Ads', freeAds]] : []),
+                ['Subscription', info.flatrate],
+                ...(rentBuy.length ? [['Rent/Buy', rentBuy]] : []),
+            ].filter(([, items]) => items && items.length);
+
+            if (categories.length === 0) {
+                c3.innerText = 'N/A';
+                c3.style.cssText = 'padding: 6px !important; background: #2b2b2b !important; color: #888888 !important; border: 1px solid #555555 !important; font-style: italic !important;';
+            } else {
+                c3.innerHTML = categories.map(
+                    ([label, items]) =>
+                    `<div style="margin-bottom:4px !important;">
+                    <span style="color:#8fb8c9 !important; font-weight:bold !important;">${label}:</span>
+                    <span style="color:#f0ede8 !important;">${items.map(p => p.provider_name).join(', ')}</span>
+                    </div>`).join('');
+            }
 
             for (const cell of row.cells) {
-                cell.style.cssText = `padding: 6px; background: #f9f9f9; color: #000; border: 1px solid #ddd;`;
+                cell.style.cssText = 'padding: 6px !important; background: #2b2b2b !important; color: #f0ede8 !important; border: 1px solid #555555 !important;';
             }
         }
 
@@ -371,21 +423,16 @@
         blurayButton.onclick = () => window.open(`https://www.blu-ray.com/search/?quicksearch=1&quicksearch_keyword=${imdbId}&section=theatrical`, `_blank`);
 
         // IMDb
-        if (window.location.hostname === 'www.imdb.com') {
+        const hostname = window.location.hostname
+        const href = window.location.href
+        if (hostname === 'www.imdb.com') {
             if (imdbId) {
                 const titleElement = document.querySelector('h1[data-testid="hero__pageTitle"]') || document.querySelector('h1');
                 if (titleElement) {
-                    const script = document.querySelector('script[type="application/ld+json"]');
-                    try {
-                        const data = JSON.parse(script.textContent);
-                        contentType = data['@type']
-                    } catch (e) {
-                        // Ignore invalid JSON-LD
-                    }
+                    contentType = getTypeIMDb();
                     contentType = contentType === "Movie" ? "movie" : "tv";
                     tmdbButton.onclick = () => window.open(`https://www.themoviedb.org/${contentType}/${tmdbId}`, '_blank');
                     tvdbButton.onclick = () => window.open(`https://www.thetvdb.com/${tvdbSlug}`, '_blank');
-
                     const wrapper = document.createElement('div');
                     wrapper.style.display = 'flex';
                     wrapper.style.alignItems = 'center';
@@ -404,14 +451,8 @@
                     parent.insertBefore(wrapper, titleElement);
                     wrapper.appendChild(titleElement);
                     wrapper.appendChild(buttonGroup);
-//                     const parent = titleElement.parentNode;
-//                     parent.insertBefore(wrapper, titleElement);
-//                     wrapper.appendChild(titleElement);
-//                     if (tmdbId) wrapper.appendChild(tmdbButton);
-//                     if (tvdbSlug) wrapper.appendChild(tvdbButton);
-//                     if (tmdbId && contentType === "movie") wrapper.appendChild(letterboxdButton);
-//                     if (imdbId) wrapper.appendChild(blurayButton);
-                    applyButtonHeight(window.getComputedStyle(titleElement).lineHeight - 10)
+                    const lineHeight = parseFloat(window.getComputedStyle(titleElement).lineHeight);
+                    applyButtonHeight(`${lineHeight - 14}px`);
                 }
             }
         }
@@ -423,15 +464,35 @@
             if (titleElement) {
                 imdbButton.onclick = () => window.open(`https://www.imdb.com/title/${imdbId}/`, '_blank');
                 tvdbButton.onclick = () => window.open(`https://www.thetvdb.com/${tvdbSlug}`, '_blank');
-                if (imdbId) titleElement.parentNode.insertBefore(blurayButton, titleElement.nextSibling);
-                if (contentType === "movie") titleElement.parentNode.insertBefore(letterboxdButton, titleElement.nextSibling);
-                if (tvdbSlug) titleElement.parentNode.insertBefore(tvdbButton, titleElement.nextSibling);
-                if (imdbId) titleElement.parentNode.insertBefore(imdbButton, titleElement.nextSibling);
+                // Create button group
+                const buttonGroup = document.createElement("div");
+
+                buttonGroup.style.display = "inline-flex";
+                buttonGroup.style.alignItems = "center";
+                buttonGroup.style.padding = "4px 6px";
+                buttonGroup.style.background = "rgba(0, 0, 0, 0.45)";
+                buttonGroup.style.borderRadius = "16px";
+                buttonGroup.style.verticalAlign = "middle";
+
+                if (imdbId) buttonGroup.appendChild(imdbButton);
+                if (contentType === "movie") buttonGroup.appendChild(letterboxdButton);
+                if (tvdbSlug) buttonGroup.appendChild(tvdbButton);
+                if (imdbId) buttonGroup.appendChild(blurayButton);
+
+                titleElement.parentNode.insertBefore(buttonGroup, titleElement.nextSibling);
+                //                 if (imdbId) titleElement.parentNode.insertBefore(blurayButton, titleElement.nextSibling);
+                //                 if (contentType === "movie") titleElement.parentNode.insertBefore(letterboxdButton, titleElement.nextSibling);
+                //                 if (tvdbSlug) titleElement.parentNode.insertBefore(tvdbButton, titleElement.nextSibling);
+                //                 if (imdbId) titleElement.parentNode.insertBefore(imdbButton, titleElement.nextSibling);
                 const span = document.createElement("span");
                 span.textContent = ` [${tmdbId}]`;
-                span.style.fontSize = "22px";
+                span.style.fontSize = "30px";
                 span.style.paddingLeft = "8px";
                 span.style.paddingRight = "8px";
+                span.style.alignItems = 'center';
+                span.style.verticalAlign = "1px";
+                span.style.fontWeight = "normal";
+                span.style.opacity = .8;
                 if (tmdbId) titleElement.parentNode.insertBefore(span, titleElement.nextSibling);
                 applyButtonHeight(window.getComputedStyle(titleElement).lineHeight);
             }
@@ -456,7 +517,8 @@
                 if (tmdbId) wrapper.appendChild(tmdbButton);
                 if (tmdbId && contentType === "movie") wrapper.appendChild(letterboxdButton);
                 if (imdbId) wrapper.appendChild(blurayButton);
-                applyButtonHeight(window.getComputedStyle(titleElement).lineHeight);
+                const lineHeight = parseFloat(window.getComputedStyle(titleElement).lineHeight);
+                applyButtonHeight(`${lineHeight - 14}px`);
             }
         }
 
