@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Movie/TV Database Circus
+// @name         Movie/TV Database Circus TEST LOGOS
 // @namespace    http://tampermonkey.net/
-// @version      1.95
+// @version      1.96
 // @description  Add extenal ID buttons to tmdb.org, imdb.com, and thetvdb.com
 // @author       SiUwU squashski
 // @match        https://www.imdb.com/title/*
@@ -57,7 +57,7 @@
         button.id = text;
         button.title = text; // accessible / hover name, since there's no visible text label
         button.setAttribute('aria-label', text);
-        button.style.marginLeft = '10px';
+        //button.style.marginLeft = '10px';
         button.style.padding = '0';
         button.style.background = 'transparent';
         button.style.border = 'none';
@@ -110,11 +110,11 @@
     }
 
     function applyButtonHeight(height) {
-        tmdbButton.style.height = height;
-        imdbButton.style.height = height;
-        tvdbButton.style.height = height;
-        letterboxdButton.style.height = height;
-        blurayButton.style.height = height;
+        tmdbButton.style.height = `${height}px`;
+        imdbButton.style.height = `${height}px`;
+        tvdbButton.style.height = `${height}px`;
+        letterboxdButton.style.height = `${height}px`;
+        blurayButton.style.height = `${height}px`;
     }
 
     function fetch(method, url, body = null, headers = {}) {
@@ -258,39 +258,45 @@
     async function getTMDbID() {
         const hostname = window.location.hostname;
         if (hostname === 'www.themoviedb.org') {
+            const match = window.location.href.match(/\/(movie|tv)\//);
+            let tmdbType = match?.[1] ?? null;
+            if (tmdbType === 'tv') tmdbType = 'TVSeries';
+            else if (tmdbType === 'movie') tmdbType = 'Movie';
             const urlParts = window.location.pathname.split('/');
-            return urlParts[2].match(/^\d+/)[0]; // extract only the numeric ID
+            const tmdbId = urlParts[2].match(/^\d+/)[0];
+            return [tmdbId, tmdbType];
         } else if (hostname === 'www.thetvdb.com' || hostname === 'www.imdb.com') {
             const url = `https://api.themoviedb.org/3/find/${imdbId}?api_key=${TMDB_API_KEY}&external_source=imdb_id`;
             const data = await fetch('GET', url, null);
             if ("error" in data) throw new Error(data.error);
             if (hostname === "www.imdb.com") {
                 let contentType = getTypeIMDb();
-
                 switch (contentType) {
                     case "Movie":
-                        return data.movie_results[0].id ?? null;
+                        return [data.movie_results[0].id ?? null, "Movie"];
                     case "TVSeries":
-                        return data.tv_results[0].id ?? null;
+                        return [data.tv_results[0].id ?? null, "TVSeries"];
                     case "TVEpisode":
-                        return data.tv_episode_results[0].show_id ?? null;
+                        if (data.tv_episode_results.length > 0) return [data.tv_episode_results[0].show_id ?? null, "TVSeries"];
+                        else if (data.movie_results.length > 0) return [data.movie_results[0].id ?? null, "Movie"];
+                        return [null, null];
                     default:
-                        return null;
+                        return [null, null];
                 }
             } else if (hostname === 'www.thetvdb.com') {
                 const tvdbUrl = window.location.href;
                 let contentType = tvdbUrl.includes("/movies/") ? "Movie" : "TVSeries";
                 switch (contentType) {
                     case "Movie":
-                        return data.movie_results[0].id ?? null;
+                        return [data.movie_results[0].id ?? null, contentType];
                     case "TVSeries":
-                        return data.tv_results[0].id ?? null;
+                        return [data.tv_results[0].id ?? null, contentType];
                     default:
-                        return null;
+                        return [null, null];
                 }
             }
         }
-        return null;
+        return [null, null];
     }
 
     function displayStreamingProviders(data) {
@@ -416,7 +422,10 @@
         tvdbToken = await getTVDBToken(TVDB_API_KEY);
         imdbId = await getIMDbID();
         tvdbSlug = await getTVDBSlug();
-        tmdbId = await getTMDbID();
+        let tmdbType = null;
+        [tmdbId, tmdbType] = await getTMDbID();
+        if (tmdbType == 'Movie') tmdbType = 'movie';
+        else if (tmdbType == 'TVSeries') tmdbType = 'tv';
         let contentType = null;
 
         letterboxdButton.onclick = () => window.open(`https://letterboxd.com/tmdb/${tmdbId}/`, '_blank');
@@ -431,7 +440,7 @@
                 if (titleElement) {
                     contentType = getTypeIMDb();
                     contentType = contentType === "Movie" ? "movie" : "tv";
-                    tmdbButton.onclick = () => window.open(`https://www.themoviedb.org/${contentType}/${tmdbId}`, '_blank');
+                    tmdbButton.onclick = () => window.open(`https://www.themoviedb.org/${tmdbType}/${tmdbId}`, '_blank');
                     tvdbButton.onclick = () => window.open(`https://www.thetvdb.com/${tvdbSlug}`, '_blank');
                     const wrapper = document.createElement('div');
                     wrapper.style.display = 'flex';
@@ -442,6 +451,7 @@
                     buttonGroup.style.display = 'flex';
                     buttonGroup.style.alignItems = 'center';
                     buttonGroup.style.flexShrink = '0'; // never let the group itself get squished/split
+                    buttonGroup.style.gap = '10px';
                     if (tmdbId) buttonGroup.appendChild(tmdbButton);
                     if (tvdbSlug) buttonGroup.appendChild(tvdbButton);
                     if (tmdbId && contentType === "movie") buttonGroup.appendChild(letterboxdButton);
@@ -452,7 +462,8 @@
                     wrapper.appendChild(titleElement);
                     wrapper.appendChild(buttonGroup);
                     const lineHeight = parseFloat(window.getComputedStyle(titleElement).lineHeight);
-                    applyButtonHeight(`${lineHeight - 14}px`);
+                    console.log(lineHeight);
+                    applyButtonHeight(lineHeight >= 40 ? lineHeight - 12 : lineHeight);
                 }
             }
         }
@@ -461,6 +472,7 @@
         if (window.location.hostname === 'www.themoviedb.org') {
             contentType = window.location.href.includes("/tv/") ? "tv" : "movie";
             const titleElement = document.querySelector('span[class="tag release_date"]')
+            titleElement.textContent = titleElement.textContent + ` [${tmdbId}]`;
             if (titleElement) {
                 imdbButton.onclick = () => window.open(`https://www.imdb.com/title/${imdbId}/`, '_blank');
                 tvdbButton.onclick = () => window.open(`https://www.thetvdb.com/${tvdbSlug}`, '_blank');
@@ -469,32 +481,25 @@
 
                 buttonGroup.style.display = "inline-flex";
                 buttonGroup.style.alignItems = "center";
-                buttonGroup.style.padding = "4px 6px";
+                buttonGroup.style.padding = "4px 10px 4px 15px";
                 buttonGroup.style.background = "rgba(0, 0, 0, 0.45)";
                 buttonGroup.style.borderRadius = "16px";
+                buttonGroup.style.gap = "10px";
+                buttonGroup.style.marginLeft = "10px";
                 buttonGroup.style.verticalAlign = "middle";
+                buttonGroup.style.setProperty(
+                    "box-shadow",
+                    "0 4px 20px rgba(0, 0, 0, 0.6)",
+                    "important"
+                );
 
                 if (imdbId) buttonGroup.appendChild(imdbButton);
-                if (contentType === "movie") buttonGroup.appendChild(letterboxdButton);
                 if (tvdbSlug) buttonGroup.appendChild(tvdbButton);
+                if (contentType === "movie") buttonGroup.appendChild(letterboxdButton);
                 if (imdbId) buttonGroup.appendChild(blurayButton);
 
                 titleElement.parentNode.insertBefore(buttonGroup, titleElement.nextSibling);
-                //                 if (imdbId) titleElement.parentNode.insertBefore(blurayButton, titleElement.nextSibling);
-                //                 if (contentType === "movie") titleElement.parentNode.insertBefore(letterboxdButton, titleElement.nextSibling);
-                //                 if (tvdbSlug) titleElement.parentNode.insertBefore(tvdbButton, titleElement.nextSibling);
-                //                 if (imdbId) titleElement.parentNode.insertBefore(imdbButton, titleElement.nextSibling);
-                const span = document.createElement("span");
-                span.textContent = ` [${tmdbId}]`;
-                span.style.fontSize = "30px";
-                span.style.paddingLeft = "8px";
-                span.style.paddingRight = "8px";
-                span.style.alignItems = 'center';
-                span.style.verticalAlign = "1px";
-                span.style.fontWeight = "normal";
-                span.style.opacity = .8;
-                if (tmdbId) titleElement.parentNode.insertBefore(span, titleElement.nextSibling);
-                applyButtonHeight(window.getComputedStyle(titleElement).lineHeight);
+                applyButtonHeight(parseFloat(window.getComputedStyle(titleElement).lineHeight));
             }
         }
 
@@ -505,10 +510,13 @@
             tmdbButton.onclick = () => window.open(`https://www.themoviedb.org/${contentType}/${tmdbId}`, '_blank');
 
             const titleElement = document.querySelector('h1');
+            titleElement.style.marginBottom = '0';
             if (titleElement) {
                 const wrapper = document.createElement('div');
                 wrapper.style.display = 'flex';
                 wrapper.style.alignItems = 'center';
+                wrapper.style.verticalAlign = 'middle';
+                wrapper.style.gap = '10px';
 
                 const parent = titleElement.parentNode;
                 parent.insertBefore(wrapper, titleElement);
@@ -518,7 +526,7 @@
                 if (tmdbId && contentType === "movie") wrapper.appendChild(letterboxdButton);
                 if (imdbId) wrapper.appendChild(blurayButton);
                 const lineHeight = parseFloat(window.getComputedStyle(titleElement).lineHeight);
-                applyButtonHeight(`${lineHeight - 14}px`);
+                applyButtonHeight(lineHeight - 20);
             }
         }
 
