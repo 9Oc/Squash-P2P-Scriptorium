@@ -10,8 +10,8 @@ from pathlib import Path
 
 # vspreview comparison script.
 # Author: squash
-# Date: 17/2/2026
-# Version: 2.08
+# Date: 26/8/2026
+# Version: 3.1
 
 # Marker objects | DO NOT EDIT
 class _SkipMarker:
@@ -60,7 +60,6 @@ class Pad:
             counts = [counts] * len(positions)
         if len(positions) != len(counts):
             raise ValueError("positions and counts must have the same length if counts is a list")
-
         self.positions = positions
         self.counts = counts
     def __str__(self):
@@ -79,14 +78,12 @@ class Engine(Enum):
     BESTSOURCE = auto()
     FFMS2 = auto()
     LSMASH = auto()
-    
     def __str__(self):
         return {
             Engine.BESTSOURCE: "BestSource",
             Engine.FFMS2: "ffms2",
             Engine.LSMASH: "LSMASH",
         }[self]
-    
 
 Skip = _SkipMarker()
 Luma = _LumaMarker()
@@ -161,10 +158,18 @@ clips_config = [
 # The framerate to normalize all clips to
 fpsnum, fpsden = 24000, 1001
 
+# The minimum/maximum luminance in nits to set all tonemapped clips to
+# By default, the first clips min/max luminance is used
+src_min: float = None
+src_max: float = None
+
 # Tonemap dicts | DO NOT EDIT
 vsplacebo_hdr = {
     "src_csp": ColorSpace.HDR10,
     "dst_csp": ColorSpace.SDR,
+    "dst_prim": 3,
+    "dst_min": 0.0,
+    "dst_max": 100.0,
     "dynamic_peak_detection": False,
     "gamut_mapping": Gamut.Perceptual,
     "tone_mapping_function": Tonemap.Mobius,
@@ -175,6 +180,9 @@ vsplacebo_hdr = {
 vsplacebo_hdr10p = {
     "src_csp": ColorSpace.HDR10,
     "dst_csp": ColorSpace.SDR,
+    "dst_prim": 3,
+    "dst_min": 0.0,
+    "dst_max": 100.0,
     "dynamic_peak_detection": False,
     "gamut_mapping": Gamut.Perceptual,
     # ST2094_40 is theoretically more accurate for dynamic HDR10+ metadata, but if the result is
@@ -187,10 +195,14 @@ vsplacebo_hdr10p = {
 vsplacebo_dovi = {
     "src_csp": ColorSpace.DOVI,
     "dst_csp": ColorSpace.SDR,
+    "dst_prim": 3,
+    "dst_min": 0.0,
+    "dst_max": 100.0,
+    "scene_threshold_low": 0.0,
     "dynamic_peak_detection": False,
     "gamut_mapping": Gamut.Perceptual,
     "tone_mapping_function": Tonemap.Mobius,
-    "use_dovi": True,
+    "use_dovi": False,
     "contrast_recovery": 0.0,
 }
 
@@ -435,17 +447,24 @@ for entry in clips_config:
 
     # Tonemap
     if tonemap_mode is not None:
-        srcname += " (Tonemapped "
+        if not src_min and not src_max:
+            frame_zero = clip.get_frame(0)
+            src_min = frame_zero.props["MasteringDisplayMinLuminance"]
+            src_max = frame_zero.props["MasteringDisplayMaxLuminance"]
+
+        src_min_max = {
+            "src_min": src_min,
+            "src_max": src_max,
+        }
+
+        srcname += " (Tonemapped)"
         clip = clip.resize.Bicubic(format=vs.YUV444P16)
         if tonemap_mode is HDR:
-            srcname += "HDR)"
-            clip = core.placebo.Tonemap(clip, **vsplacebo_hdr)
+            clip = core.placebo.Tonemap(clip, **src_min_max, **vsplacebo_hdr)
         elif tonemap_mode is HDR10Plus:
-            srcname += "HDR10+)"
-            clip = core.placebo.Tonemap(clip, **vsplacebo_hdr10p)
+            clip = core.placebo.Tonemap(clip, **src_min_max, **vsplacebo_hdr10p)
         else:
-            srcname += "DOVI)"
-            clip = core.placebo.Tonemap(clip, **vsplacebo_dovi)
+            clip = core.placebo.Tonemap(clip, **src_min_max, **vsplacebo_dovi)
 
         clip = core.std.SetFrameProps(
             clip, _Matrix=vs.MATRIX_BT709, _Transfer=vs.TRANSFER_BT709, _Primaries=vs.PRIMARIES_BT709
@@ -460,4 +479,3 @@ for entry in clips_config:
         srcname += " (Luma adjusted)"
 
     set_output(FrameInfo(clip, srcname), name=srcname)
-
