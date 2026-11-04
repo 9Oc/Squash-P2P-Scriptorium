@@ -16,7 +16,7 @@ Dependencies:
 <hr>
 
 ### Usage
-A path to a raw h264/mpeg-2/vc-1 stream and a frame number are required arguments.
+A path to a raw h264/hevc/mpeg-2/vc-1 stream and a frame number are required arguments.
 
 `check_idr.py video.h264 --frame 1000`
 
