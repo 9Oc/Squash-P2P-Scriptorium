@@ -136,7 +136,7 @@ The order of operations for the clip parameters is:
    `Decimate(1)`
 
 11. **Luma**  
-   Outputs a duplicate of the clip with the luminance values adjusted to correct gamma-bugged sources.  
+   Adjusts the luminance values of the clip to correct gamma-bugged sources.  
    Accepted value: `Luma`
 
 12. **Tonemapping**  
