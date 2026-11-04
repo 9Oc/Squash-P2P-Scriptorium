@@ -37,12 +37,15 @@ Dependencies:
 - [Python 3.12](https://www.python.org/downloads/release/python-3120/): Install using  `Windows installer (64-bit)`
 - [VapourSynth](https://github.com/vapoursynth/vapoursynth/releases/tag/R70): Install using  `VapourSynth-x64-R70.exe`
 - [VSRepoGUI](https://github.com/theChaosCoder/VSRepoGUI/releases/tag/v0.9.8)
-- [vspreview](https://github.com/Jaded-Encoding-Thaumaturgy/vs-preview): Install using  `pip install vspreview` after you've installed Python and VapourSynth
+- [vspreview](https://github.com/Jaded-Encoding-Thaumaturgy/vs-preview): Install using  `pip install vspreview==0.19.1` after you've installed Python and VapourSynth
 
 Plugins required from VSRepoGUI:
 - Dovi Library
 - LSMASHSource
+- FFmpegSource2
+- BestSource
 - vs-placebo
+- LibP2P
 - Subtext
 - VSUtil
 - RemapFrames
