@@ -54,7 +54,32 @@ Plugins required from VSRepoGUI:
 
 Plugins required that are not on VSRepo:
 
-`pip install awsmfunc vstools`
+`pip install awsmfunc vstools`  
+
+
+[vs-nlq](https://github.com/quietvoid/vs-nlq) is required for FEL baking. It must be built from source and the `.dll` placed into your VapourSynth `plugins64` plugins folder, normally found here: `C:\Users\USERNAME\AppData\Roaming\VapourSynth\plugins64`.
+
+To build vs-nlq from source, follow these steps:
+
+1. Install Rust [here](https://rustup.rs/). This will include `rustc` and `cargo`, which are both needed.
+2. Install Git [here](https://git-scm.com/install/).
+3. Install MSVC build tools [here](https://visualstudio.microsoft.com/downloads/?q=build+tools). Select the free Community edition.
+4. Clone the vs-nlq repository with git using these commands:
+
+   ```
+   git clone https://github.com/quietvoid/vs-nlq.git
+   cd vs-nlq
+   ```
+
+5. Build the plugin with cargo using this command:
+
+   ```
+   cargo build --release
+   ```
+
+   Cargo will then compile and build the `.dll`. It should end up in `target\release\vs_nlq.dll`.
+
+6. Move `vs_nlq.dll` into your VapourSynth `plugins64` folder.
 <hr>
 
 ### Usage
