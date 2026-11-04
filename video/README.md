@@ -142,11 +142,12 @@ The order of operations for the clip parameters is:
 12. **Tonemapping**  
    Applies tonemapping to HDR/Dolby Vision sources so they can be viewed on SDR screens.  
    Accepted values:  
-   - `HDR`: Tonemaps an HDR10 source to SDR.  
-   - `DOVI`: Tonemaps a Dolby Vision source to SDR using DV metadata.
+   - `HDR`: Tonemaps an HDR10 source to SDR.
+   - `HDR10P`: Tonemaps an HDR10+ source to SDR.
+   - `DOVI`: Tonemaps a Dolby Vision source to SDR.
 
 11. **Baking FEL**  
-   Outputs a duplicate of the clip with the Dolby Vision EL baked into the source.  
+   Bakes the Dolby Vision EL into the clip.  
    Example:  
    `BakeEL(r"path/to/EL.mkv")`
 
