@@ -1,5 +1,5 @@
 """
-version 1.03
+version 1.04
 Subtitle file-names should end with a . followed by the language tag.
 For example: Juno.2007.AMZN.WEB.en-us.srt
 Anything that comes before ".en-us" can be whatever you want.
@@ -78,7 +78,7 @@ SRT_PATTERN = re.compile(
     r"\['([^']*?\.srt)'\]\.\.\.",
     re.DOTALL
 )
-SCORE_PATTERN = re.compile(r"score:\s*([0-9.]+)")
+SCORE_PATTERN = re.compile(r"score:\s*(-?[0-9.]+)")
 OFFSET_PATTERN = re.compile(r"offset seconds:\s*([0-9.\-]+)")
 FRAMERATE_PATTERN = re.compile(r"framerate scale factor:\s*([0-9.]+)")
 
@@ -126,7 +126,7 @@ def find_audio_file(directory: Path, specified: Path = None) -> Path:
     sys.exit(1)
 
 
-def process_subtitle(mkv_file: Path, subtitle_file: Path, output_dir: Path, no_fix_framerate: bool = False):
+def process_subtitle(mkv_file: Path, subtitle_file: Path, output_dir: Path, no_fix_framerate: bool = False, gss: bool = False):
     """Sync and rename (if needed) one subtitle file using ffsubsync."""
     filename = subtitle_file.stem
     parts = filename.split('.')
@@ -153,6 +153,8 @@ def process_subtitle(mkv_file: Path, subtitle_file: Path, output_dir: Path, no_f
     ]
     if no_fix_framerate:
         cmd.append("--no-fix-framerate")
+    if gss:
+        cmd.append("--gss")
     
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
@@ -183,6 +185,8 @@ def parse_args():
     parser.add_argument("subs_directory", help="Directory containing the subtitles to sync")
     parser.add_argument("--no-framerate", action='store_true',
                     help="Tells ffsubsync to assume the framerate of the subtitle is already correct")
+    parser.add_argument("--gss", action='store_true',
+                    help="Enables the gss option in ffsubsync resulting in many more framerate and offset values being tried during syncing")
     parser.add_argument("--audio", type=str, default=None,
                     help="Optional audio file to sync to")
     parser.add_argument("--max-workers", type=int, default=None,
@@ -227,7 +231,7 @@ def main():
         start = time.perf_counter()
         with ThreadPoolExecutor(max_workers=workers) as executor:
             futures = [
-                executor.submit(process_subtitle, temp_mkv, s, synced_dir, args.no_framerate)
+                executor.submit(process_subtitle, temp_mkv, s, synced_dir, args.no_framerate, args.gss)
                 for s in srt_files
             ]
 
