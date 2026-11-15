@@ -31,7 +31,7 @@ ALPHABETICAL_CODE_MAP = {
     "bg": "bulgarian.bg",
     "zh-Hans": "chinese.simplified.zh-Hans",
     "zh-Hant": "chinese.traditional.zh-Hant",
-    "yue-Hant": "chinese.cantonese.zh-Hant",
+    "yue-Hant": "chinese.traditional.cantonese.zh-Hant",
     "hr": "croatian.hr",
     "nl": "dutch.nl",
     "nl-BE": "dutch.nl-BE",
