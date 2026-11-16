@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Movie/TV Database Circus TEST LOGOS
+// @name         Movie/TV Database Circus
 // @namespace    http://tampermonkey.net/
-// @version      1.96
-// @description  Add extenal ID buttons to tmdb.org, imdb.com, and thetvdb.com
+// @version      2.0
+// @description  Add extenal ID buttons on themoviedb.org, imdb.com, and thetvdb.com so each site circularly loops back to one another. Bonus Letterboxd and Blu-ray.com buttons included.
 // @author       SiUwU squashski
 // @match        https://www.imdb.com/title/*
 // @match        https://www.themoviedb.org/movie/*
@@ -300,7 +300,8 @@
     }
 
     function displayStreamingProviders(data) {
-        if (!data.results) return;
+        if (!data || !data.results) return;
+        if (Object.keys(data.results).length === 0) return;
         let visible = true;
 
         const btn = document.createElement('button');
@@ -354,7 +355,11 @@
 
         const countryNames = new Intl.DisplayNames(['en'], { type: 'region' });
 
-        for (const [code, info] of Object.entries(data.results)) {
+        const hasProviders = (info) => ['flatrate', 'rent', 'buy', 'free', 'ads'].some(k => info[k]?.length);
+        const entries = Object.entries(data.results).filter(([, info]) => hasProviders(info));
+        if (entries.length === 0) return;
+
+        for (const [code, info] of entries) {
             const row = table.insertRow();
             row.style.cssText = 'border: 1px solid #555555 !important; background: #2b2b2b !important; color: #f0ede8 !important;';
 
