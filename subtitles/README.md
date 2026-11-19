@@ -6,7 +6,7 @@
 
 Dependencies:
 
-[SUPer](https://github.com/cubicibo/SUPer)
+[SUPer](https://github.com/cubicibo/SUPer) `pip install git+https://github.com/cubicibo/SUPer.git@4bedbe4ad6cf4980ec5ef899e1f9855a11d977b6`
 
 [SupMover](https://github.com/MonoS/SupMover) must be in your PATH with the .exe named `SupMover.exe`.
 <hr>
