@@ -1,13 +1,14 @@
 """
 supmapper.py
 @author squash
+@version 2.0
 
 Tonemap .sup files using a reference .sup file for brightness matching.
 Optionally provide a relative percentage or RGB value to tonemap without a reference.
 All .sup files in the given directory will be tonemapped to the given reference/percentage/RGB value.
 
 Dependencies:
-pip install git+https://github.com/cubicibo/SUPer.git
+pip install git+https://github.com/cubicibo/SUPer.git@v0.3.0
 SupMover https://github.com/MonoS/SupMover
 
 SupMover must be added to your PATH with the .exe named "SupMover.exe".
@@ -18,7 +19,7 @@ import shutil
 import subprocess
 
 from pathlib import Path
-from SUPer import SUPFile, PDS
+from SUPer import SUPReader, PDS
 
 class PGSFile:
     def __init__(self, path, max_rgb, max_y):
@@ -40,30 +41,25 @@ def ycbcr_to_rgb_limited(y, cb, cr):
     b = y + 1.772 * cb
     return tuple(int(round(max(0, min(255, v)))) for v in (r, g, b))
 
-def find_max_rgb_y_in_sup(sup_path: str | Path) -> int:
+def find_max_rgb_y_in_sup(sup_path: str | Path) -> tuple[int, int]:
     sup_path = Path(sup_path)
-    sup = SUPFile(sup_path)
-    
+    sup = SUPReader(sup_path)
+
     max_rgb = 0
     max_y = 0
-    
-    for ds in sup.displaysets():
-        for seg in ds:
-            if isinstance(seg, PDS):
-                palette = seg.to_palette()
-                for pid, entry in palette.palette.items():
-                    # entry is a PaletteEntry with y, cr, cb, alpha attributes
-                    if entry.alpha > 0:  # check visible pixels only
-                        # convert YCbCr to RGB
-                        r, g, b = ycbcr_to_rgb_limited(entry.y, entry.cb, entry.cr)
-                        rgb = max(r, g, b)
-                        if rgb > max_rgb:
-                            max_rgb = rgb
-                        if entry.y > max_y:
-                            max_y = entry.y
-    
+
+    # SUPer 0.3.0 yields parsed segments directly; no DisplaySet assembly
+    for seg in sup.read_segment():
+        if isinstance(seg, PDS):
+            # PDS.palette is now a dict-like Palette (ID -> PaletteEntry)
+            for entry in seg.palette.values():
+                if entry.A > 0:  # check visible palette entries only
+                    r, g, b = ycbcr_to_rgb_limited(entry.Y, entry.Cb, entry.Cr)
+                    max_rgb = max(max_rgb, r, g, b)
+                    max_y = max(max_y, entry.Y)
+
     return max_rgb, max_y
-    
+
 def calculate_target_percent(current_y: float, target_y: float) -> float:
     source_y_norm = ((current_y - 16) * (255 / 219)) / 255
     target_y_norm = ((target_y - 16) * (255 / 219)) / 255
@@ -91,8 +87,8 @@ if __name__ == "__main__":
         epilog="""
 Examples:
   Using a reference file
-  supmapper.py /path/to/subtitles --reference /path/to/reference.sup
-  supmapper.py /path/to/subtitles -r /path/to/reference.sup
+  supmapper.py "/path/to/subtitles" --reference /path/to/reference.sup
+  supmapper.py "/path/to/subtitles" -r /path/to/reference.sup
   
   Using a target percentage
   supmapper.py "/path/to/subtitles" --percent 60.5
